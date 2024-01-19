@@ -3,17 +3,53 @@
 import torch
 import numpy as np
 from tqdm import tqdm
+import os
 
 from ldm.modules.diffusionmodules.util import make_ddim_sampling_parameters, make_ddim_timesteps, noise_like, extract_into_tensor
+from omegaconf import OmegaConf
+from ldm.util import instantiate_from_config
+
+def get_state_dict(d):
+    return d.get('state_dict', d)
+
+
+def load_state_dict(ckpt_path, location='cpu'):
+    _, extension = os.path.splitext(ckpt_path)
+    if extension.lower() == ".safetensors":
+        import safetensors.torch
+        state_dict = safetensors.torch.load_file(ckpt_path, device=location)
+    else:
+        state_dict = get_state_dict(torch.load(ckpt_path, map_location=torch.device(location)))
+    state_dict = get_state_dict(state_dict)
+    print(f'Loaded state_dict from [{ckpt_path}]')
+    return state_dict
+
+
+def create_model(config_path):
+    config = OmegaConf.load(config_path)
+    model = instantiate_from_config(config.model).cpu()
+    print(f'Loaded model config from [{config_path}]')
+    return model
 
 
 class DDIMSampler(object):
-    def __init__(self, model, schedule="linear", **kwargs):
+    def __init__(self, model, pretrained, control_pretrained, schedule="linear", out_indices=(0, 1, 2, 3), **kwargs):
         super().__init__()
-        self.model = model
-        self.ddpm_num_timesteps = model.num_timesteps
+        self.model = create_model(model)
+        self.model.load_state_dict(load_state_dict(pretrained, location='cuda'), strict=False)
+        self.model.load_state_dict(load_state_dict(control_pretrained, location='cuda'), strict=False)
+        self.model = self.model.cuda()
+        self.ddpm_num_timesteps = self.model.num_timesteps
         self.schedule = schedule
-
+        self.out_indices = out_indices
+        self.make_schedule(ddim_num_steps=20, ddim_eta=1, verbose=False)
+    #     self._freeze_stages()
+    
+    # def _freeze_stages(self):
+    #     """Freeze stages param and norm stats."""
+    #     for param in self.parameters():
+    #         param.requires_grad = False
+    
     def register_buffer(self, name, attr):
         if type(attr) == torch.Tensor:
             if attr.device != torch.device("cuda"):
@@ -77,6 +113,7 @@ class DDIMSampler(object):
                ucg_schedule=None,
                **kwargs
                ):
+        """
         if conditioning is not None:
             if isinstance(conditioning, dict):
                 ctmp = conditioning[list(conditioning.keys())[0]]
@@ -93,7 +130,8 @@ class DDIMSampler(object):
             else:
                 if conditioning.shape[0] != batch_size:
                     print(f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}")
-
+        """
+        
         self.make_schedule(ddim_num_steps=S, ddim_eta=eta, verbose=verbose)
         # sampling
         C, H, W = shape
@@ -115,7 +153,7 @@ class DDIMSampler(object):
                                                     unconditional_guidance_scale=unconditional_guidance_scale,
                                                     unconditional_conditioning=unconditional_conditioning,
                                                     dynamic_threshold=dynamic_threshold,
-                                                    ucg_schedule=ucg_schedule
+                                                    ucg_schedule=ucg_schedule, **kwargs
                                                     )
         return samples, intermediates
 
@@ -126,7 +164,7 @@ class DDIMSampler(object):
                       mask=None, x0=None, img_callback=None, log_every_t=100,
                       temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
                       unconditional_guidance_scale=1., unconditional_conditioning=None, dynamic_threshold=None,
-                      ucg_schedule=None):
+                      ucg_schedule=None, **kwargs):
         device = self.model.betas.device
         b = shape[0]
         if x_T is None:
@@ -140,10 +178,9 @@ class DDIMSampler(object):
             subset_end = int(min(timesteps / self.ddim_timesteps.shape[0], 1) * self.ddim_timesteps.shape[0]) - 1
             timesteps = self.ddim_timesteps[:subset_end]
 
-        intermediates = {'x_inter': [img], 'pred_x0': [img]}
+        intermediates = {'x_inter': [img], 'pred_x0': [img], 'cross_attn_maps': [None]}
         time_range = reversed(range(0,timesteps)) if ddim_use_original_steps else np.flip(timesteps)
         total_steps = timesteps if ddim_use_original_steps else timesteps.shape[0]
-        print(f"Running DDIM Sampling with {total_steps} timesteps")
 
         iterator = tqdm(time_range, desc='DDIM Sampler', total=total_steps)
 
@@ -153,27 +190,29 @@ class DDIMSampler(object):
 
             if mask is not None:
                 assert x0 is not None
-                img_orig = self.model.q_sample(x0, ts)  # TODO: deterministic forward pass?
+                img_orig = self.model.q_sample(x0, ts)
                 img = img_orig * mask + (1. - mask) * img
 
             if ucg_schedule is not None:
                 assert len(ucg_schedule) == len(time_range)
                 unconditional_guidance_scale = ucg_schedule[i]
 
-            outs = self.p_sample_ddim(img, cond, ts, index=index, use_original_steps=ddim_use_original_steps,
+            img, pred_x0, layers_cross_attn_maps = self.p_sample_ddim(img, cond, ts, index=index, use_original_steps=ddim_use_original_steps,
                                       quantize_denoised=quantize_denoised, temperature=temperature,
                                       noise_dropout=noise_dropout, score_corrector=score_corrector,
                                       corrector_kwargs=corrector_kwargs,
                                       unconditional_guidance_scale=unconditional_guidance_scale,
                                       unconditional_conditioning=unconditional_conditioning,
                                       dynamic_threshold=dynamic_threshold)
-            img, pred_x0 = outs
             if callback: callback(i)
             if img_callback: img_callback(pred_x0, i)
 
-            if index % log_every_t == 0 or index == total_steps - 1:
-                intermediates['x_inter'].append(img)
-                intermediates['pred_x0'].append(pred_x0)
+            # if index % log_every_t == 0 or index == total_steps - 1:
+            if True:
+                intermediates['x_inter'].append(img.cpu())
+                intermediates['pred_x0'].append(pred_x0.cpu())
+                intermediates['cross_attn_maps'].append(layers_cross_attn_maps)
+        
 
         return img, intermediates
 
@@ -185,30 +224,10 @@ class DDIMSampler(object):
         b, *_, device = *x.shape, x.device
 
         if unconditional_conditioning is None or unconditional_guidance_scale == 1.:
-            model_output = self.model.apply_model(x, t, c)
+            model_output, layers_cross_attn_maps = self.model.apply_model(x, t, c)
         else:
-            x_in = torch.cat([x] * 2)
-            t_in = torch.cat([t] * 2)
-            if isinstance(c, dict):
-                assert isinstance(unconditional_conditioning, dict)
-                c_in = dict()
-                for k in c:
-                    if isinstance(c[k], list):
-                        c_in[k] = [torch.cat([
-                            unconditional_conditioning[k][i],
-                            c[k][i]]) for i in range(len(c[k]))]
-                    else:
-                        c_in[k] = torch.cat([
-                                unconditional_conditioning[k],
-                                c[k]])
-            elif isinstance(c, list):
-                c_in = list()
-                assert isinstance(unconditional_conditioning, list)
-                for i in range(len(c)):
-                    c_in.append(torch.cat([unconditional_conditioning[i], c[i]]))
-            else:
-                c_in = torch.cat([unconditional_conditioning, c])
-            model_uncond, model_t = self.model.apply_model(x_in, t_in, c_in).chunk(2)
+            model_t, layers_cross_attn_maps = self.model.apply_model(x, t, c)
+            model_uncond, _ = self.model.apply_model(x, t, unconditional_conditioning)
             model_output = model_uncond + unconditional_guidance_scale * (model_t - model_uncond)
 
         if self.model.parameterization == "v":
@@ -248,12 +267,13 @@ class DDIMSampler(object):
         if noise_dropout > 0.:
             noise = torch.nn.functional.dropout(noise, p=noise_dropout)
         x_prev = a_prev.sqrt() * pred_x0 + dir_xt + noise
-        return x_prev, pred_x0
+        return x_prev, pred_x0, layers_cross_attn_maps
 
     @torch.no_grad()
     def encode(self, x0, c, t_enc, use_original_steps=False, return_intermediates=None,
                unconditional_guidance_scale=1.0, unconditional_conditioning=None, callback=None):
-        num_reference_steps = self.ddpm_num_timesteps if use_original_steps else self.ddim_timesteps.shape[0]
+        timesteps = np.arange(self.ddpm_num_timesteps) if use_original_steps else self.ddim_timesteps
+        num_reference_steps = timesteps.shape[0]
 
         assert t_enc <= num_reference_steps
         num_steps = t_enc
@@ -269,7 +289,7 @@ class DDIMSampler(object):
         intermediates = []
         inter_steps = []
         for i in tqdm(range(num_steps), desc='Encoding Image'):
-            t = torch.full((x0.shape[0],), i, device=self.model.device, dtype=torch.long)
+            t = torch.full((x0.shape[0],), timesteps[i], device=self.model.device, dtype=torch.long)
             if unconditional_guidance_scale == 1.:
                 noise_pred = self.model.apply_model(x_next, t, c)
             else:
@@ -322,7 +342,6 @@ class DDIMSampler(object):
 
         time_range = np.flip(timesteps)
         total_steps = timesteps.shape[0]
-        print(f"Running DDIM Sampling with {total_steps} timesteps")
 
         iterator = tqdm(time_range, desc='Decoding image', total=total_steps)
         x_dec = x_latent
@@ -334,3 +353,295 @@ class DDIMSampler(object):
                                           unconditional_conditioning=unconditional_conditioning)
             if callback: callback(i)
         return x_dec
+    
+    
+    def q_sample(self, x_start, t, noise=None):
+        noise = default(noise, lambda: torch.randn_like(x_start))
+        return (extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
+                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise)
+    
+    
+    @torch.no_grad()
+    def sample_create_image_mask(self,
+               S,
+               batch_size,
+               shape,
+               conditioning=None,
+               callback=None,
+               normals_sequence=None,
+               img_callback=None,
+               quantize_x0=False,
+               eta=0.,
+               mask=None,
+               x0=None,
+               temperature=1.,
+               noise_dropout=0.,
+               score_corrector=None,
+               corrector_kwargs=None,
+               verbose=True,
+               x_T=None,
+               log_every_t=100,
+               unconditional_guidance_scale=1.,
+               unconditional_conditioning=None, # this has to come in the same format as the conditioning, # e.g. as encoded tokens, ...
+               dynamic_threshold=None,
+               ucg_schedule=None, 
+               **kwargs
+               ):
+        """
+        if conditioning is not None:
+            if isinstance(conditioning, dict):
+                ctmp = conditioning[list(conditioning.keys())[0]]
+                while isinstance(ctmp, list): ctmp = ctmp[0]
+                cbs = ctmp.shape[0]
+                if cbs != batch_size:
+                    print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
+
+            elif isinstance(conditioning, list):
+                for ctmp in conditioning:
+                    if ctmp.shape[0] != batch_size:
+                        print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
+
+            else:
+                if conditioning.shape[0] != batch_size:
+                    print(f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}")
+        """
+        
+        
+        # sampling
+        C, H, W = shape
+        size = (batch_size, C, H, W)
+
+        self.make_schedule(ddim_num_steps=kwargs['control_start_step'], ddim_eta=eta, verbose=verbose)
+                
+        contour_masks, foreground_masks = self.first_step(conditioning, size,
+                                                    callback=callback,
+                                                    img_callback=img_callback,
+                                                    quantize_denoised=quantize_x0,
+                                                    mask=mask, x0=x0,
+                                                    ddim_use_original_steps=False,
+                                                    noise_dropout=noise_dropout,
+                                                    temperature=temperature,
+                                                    score_corrector=score_corrector,
+                                                    corrector_kwargs=corrector_kwargs,
+                                                    x_T=x_T,
+                                                    log_every_t=log_every_t,
+                                                    unconditional_guidance_scale=unconditional_guidance_scale,
+                                                    unconditional_conditioning=unconditional_conditioning,
+                                                    dynamic_threshold=dynamic_threshold,
+                                                    ucg_schedule=ucg_schedule, **kwargs
+                                                    )
+        
+        conditioning["c_concat"] = [contour_masks.to(self.model.betas.device)]
+        unconditional_conditioning["c_concat"] = [contour_masks.to(self.model.betas.device)]
+        
+        self.make_schedule(ddim_num_steps=S - kwargs['control_start_step'], ddim_eta=eta, verbose=verbose)
+        samples = self.second_step(conditioning, size,
+                            callback=callback,
+                            img_callback=img_callback,
+                            quantize_denoised=quantize_x0,
+                            mask=mask, x0=x0,
+                            ddim_use_original_steps=False,
+                            noise_dropout=noise_dropout,
+                            temperature=temperature,
+                            score_corrector=score_corrector,
+                            corrector_kwargs=corrector_kwargs,
+                            x_T=x_T,
+                            log_every_t=log_every_t,
+                            unconditional_guidance_scale=unconditional_guidance_scale,
+                            unconditional_conditioning=unconditional_conditioning,
+                            dynamic_threshold=dynamic_threshold,
+                            ucg_schedule=ucg_schedule, **kwargs
+                            )
+        intermediates = {"pseudo_masks": foreground_masks, 'contour_masks': contour_masks}
+        
+        return samples, intermediates
+    
+    
+    @torch.no_grad()
+    def first_step(self, cond, shape,
+                      x_T=None, ddim_use_original_steps=False,
+                      callback=None, timesteps=None, quantize_denoised=False,
+                      mask=None, x0=None, img_callback=None, log_every_t=100,
+                      temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
+                      unconditional_guidance_scale=1., unconditional_conditioning=None, dynamic_threshold=None,
+                      ucg_schedule=None, **kwargs):
+        device = self.model.betas.device
+        b = shape[0]
+        if x_T is None:
+            img = torch.randn(shape, device=device)
+        else:
+            img = x_T
+
+        if timesteps is None:
+            timesteps = self.ddpm_num_timesteps if ddim_use_original_steps else self.ddim_timesteps
+        elif timesteps is not None and not ddim_use_original_steps:
+            subset_end = int(min(timesteps / self.ddim_timesteps.shape[0], 1) * self.ddim_timesteps.shape[0]) - 1
+            timesteps = self.ddim_timesteps[:subset_end]
+        
+        time_range = reversed(range(0,timesteps)) if ddim_use_original_steps else np.flip(timesteps)
+        total_steps = timesteps if ddim_use_original_steps else timesteps.shape[0]
+        
+        intermediates = {'cross_attn_maps': []}
+        iterator = tqdm(time_range, desc='DDIM Sampler', total=total_steps)
+        for i, step in enumerate(iterator):
+            index = total_steps - i - 1
+            
+            ts = torch.full((b,), step, device=device, dtype=torch.long)
+
+            if mask is not None:
+                assert x0 is not None
+                img_orig = self.model.q_sample(x0, ts)
+                img = img_orig * mask + (1. - mask) * img
+
+            if ucg_schedule is not None:
+                assert len(ucg_schedule) == len(time_range)
+                unconditional_guidance_scale = ucg_schedule[i]
+                
+                
+            img, pred_x0, layers_cross_attn_maps = self.p_sample_ddim(img, cond, ts, index=index, use_original_steps=ddim_use_original_steps,
+                                      quantize_denoised=quantize_denoised, temperature=temperature,
+                                      noise_dropout=noise_dropout, score_corrector=score_corrector,
+                                      corrector_kwargs=corrector_kwargs,
+                                      unconditional_guidance_scale=unconditional_guidance_scale,
+                                      unconditional_conditioning=unconditional_conditioning,
+                                      dynamic_threshold=dynamic_threshold)
+            if callback: callback(i)
+            if img_callback: img_callback(pred_x0, i)
+            
+            intermediates['cross_attn_maps'].append(layers_cross_attn_maps)
+        
+        contour_masks, foreground_masks = self.get_pseudo_mask(intermediates['cross_attn_maps'], noun_idx=[6] * img.shape[0], shape=img.shape)
+        
+        return contour_masks, foreground_masks
+    
+    
+    @torch.no_grad()
+    def second_step(self, cond, shape,
+                      x_T=None, ddim_use_original_steps=False,
+                      callback=None, timesteps=None, quantize_denoised=False,
+                      mask=None, x0=None, img_callback=None, log_every_t=100,
+                      temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
+                      unconditional_guidance_scale=1., unconditional_conditioning=None, dynamic_threshold=None,
+                      ucg_schedule=None, **kwargs):
+        device = self.model.betas.device
+        b = shape[0]
+        if x_T is None:
+            img = torch.randn(shape, device=device)
+        else:
+            img = x_T
+
+        if timesteps is None:
+            timesteps = self.ddpm_num_timesteps if ddim_use_original_steps else self.ddim_timesteps
+        elif timesteps is not None and not ddim_use_original_steps:
+            subset_end = int(min(timesteps / self.ddim_timesteps.shape[0], 1) * self.ddim_timesteps.shape[0]) - 1
+            timesteps = self.ddim_timesteps[:subset_end]
+
+        intermediates = {'x_inter': [img], 'pred_x0': [img], 'cross_attn_maps': [None], 'pseudo_masks': None}
+        time_range = reversed(range(0,timesteps)) if ddim_use_original_steps else np.flip(timesteps)
+        total_steps = timesteps if ddim_use_original_steps else timesteps.shape[0]
+        
+        iterator = tqdm(time_range, desc='DDIM Sampler', total=total_steps)
+        for i, step in enumerate(iterator):
+            index = total_steps - i - 1
+            
+            ts = torch.full((b,), step, device=device, dtype=torch.long)
+
+            if mask is not None:
+                assert x0 is not None
+                img_orig = self.model.q_sample(x0, ts)
+                img = img_orig * mask + (1. - mask) * img
+
+            if ucg_schedule is not None:
+                assert len(ucg_schedule) == len(time_range)
+                unconditional_guidance_scale = ucg_schedule[i]
+                
+                
+            img, pred_x0, layers_cross_attn_maps = self.p_sample_ddim(img, cond, ts, index=index, use_original_steps=ddim_use_original_steps,
+                                      quantize_denoised=quantize_denoised, temperature=temperature,
+                                      noise_dropout=noise_dropout, score_corrector=score_corrector,
+                                      corrector_kwargs=corrector_kwargs,
+                                      unconditional_guidance_scale=unconditional_guidance_scale,
+                                      unconditional_conditioning=unconditional_conditioning,
+                                      dynamic_threshold=dynamic_threshold)
+            if callback: callback(i)
+            if img_callback: img_callback(pred_x0, i)
+
+        return img
+    
+    
+    @torch.no_grad()
+    def get_pseudo_mask(self, all_cross_attn_maps, noun_idx, shape):
+        noun_idx = torch.tensor(noun_idx)
+        B, C, H, W = shape
+        pseudo_masks = torch.zeros(B, 1, H, W)
+        for layers_cross_attn_maps in all_cross_attn_maps:
+            for cross_attn_maps in layers_cross_attn_maps:
+                for cross_attn_map in cross_attn_maps:
+                    cross_attn_map = cross_attn_map.cpu()
+                    cross_attn_map = rearrange(cross_attn_map, '(b h) (H W) N -> b h N H W', h=8, H=int(np.sqrt(cross_attn_map.shape[1])))
+                    cross_attn_map = cross_attn_map.sum(dim=1)                    
+                    cross_attn_map = torch.gather(input=cross_attn_map, dim=1, index=noun_idx.reshape(B, 1, 1).repeat(1, *cross_attn_map.shape[2:]).unsqueeze(1))
+                    cross_attn_map = F.interpolate(cross_attn_map, size=shape[2:], mode='bilinear')
+                    pseudo_masks = pseudo_masks + cross_attn_map
+        pseudo_masks = (pseudo_masks - pseudo_masks.min()) / (pseudo_masks.max() - pseudo_masks.min()) / 2        
+        
+        pseudo_masks = F.interpolate(pseudo_masks, size=(256, 256), mode='bilinear')
+        
+        # fixed threshold
+        # pseudo_masks[pseudo_masks >= 0.5] = 1
+        # pseudo_masks[pseudo_masks < 0.5] = 0
+        
+        binary_masks = (pseudo_masks.squeeze(1).cpu().numpy() * 255).astype(np.uint8)
+        
+        def get_max_connected(m):
+            contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            areas = [cv2.contourArea(cnt) for cnt in contours]
+            max_idx = np.argmax(areas)                
+            contour_mask = np.zeros_like(m)
+            cv2.drawContours(contour_mask, contours, max_idx, 255, 4)
+            contour_mask = nms(contour_mask, 127, 3.0)
+            contour_mask = cv2.GaussianBlur(contour_mask, (0, 0), 3.0)
+            contour_mask[contour_mask > 4] = 255
+            contour_mask[contour_mask < 255] = 0
+            
+            foreground_mask = np.zeros_like(m)
+            cv2.drawContours(foreground_mask, contours, max_idx, 255, -1)
+            
+            return contour_mask, foreground_mask
+        
+        binary_masks = [cv2.threshold(bm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1] for bm in binary_masks]
+        contour_masks = []
+        foreground_masks = []
+        for bm in binary_masks:
+            from skimage.filters import threshold_otsu
+            # thresh = threshold_otsu(bm)
+            # bm[bm < thresh] = 0
+            # bm[bm >= thresh] = 255
+            cm, fm = get_max_connected(bm)
+            contour_masks.append(cm)
+            foreground_masks.append(fm)
+        
+        contour_masks = np.concatenate([cm[None, ...] for cm in contour_masks], axis=0)
+        contour_masks = torch.from_numpy(contour_masks / 255).unsqueeze(1).repeat(1, 3, 1, 1)
+        foreground_masks = np.concatenate([fm[None, ...] for fm in foreground_masks], axis=0)
+        foreground_masks = torch.from_numpy(foreground_masks / 255).unsqueeze(1)
+        return contour_masks.float(), foreground_masks.float()
+        
+    
+    @torch.no_grad()
+    def forward(self, x):
+        encoder_posterior = self.model.encode_first_stage(x)
+        z = self.model.get_first_stage_encoding(encoder_posterior).detach()
+        noise = torch.randn_like(z).to(z)
+        t = 50 * z.new_ones(z.shape[0], dtype=torch.int64)
+        x_noisy = self.q_sample(x_start=z, t=t, noise=noise)
+        
+        cond = {"c_concat": None, "c_crossattn": [self.model.get_learned_conditioning([''] * z.shape[0])]}
+        cond_txt = torch.cat(cond['c_crossattn'], 1)
+        
+        features = self.model.model.diffusion_model.forward_features(x=x_noisy, timesteps=t, context=cond_txt, control=None)
+        outs = []
+        for i, feat in enumerate(features):
+            if i in self.out_indices:
+                outs.append(feat)
+        return outs
