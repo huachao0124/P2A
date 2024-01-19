@@ -431,7 +431,8 @@ class EncoderDecoderLDM(EncoderDecoder):
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
                  pretrained: Optional[str] = None,
-                 init_cfg: OptMultiConfig = None):
+                 init_cfg: OptMultiConfig = None, 
+                 num_anomalies: int = 100):
         super().__init__(
                  backbone,
                  decode_head,
@@ -443,4 +444,5 @@ class EncoderDecoderLDM(EncoderDecoder):
                  pretrained,
                  init_cfg)
         self.ldm = MODELS.build(ldm)
+        self.anomalies = [None] * num_anomalies
         
