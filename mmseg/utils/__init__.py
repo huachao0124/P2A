@@ -23,6 +23,8 @@ from .typing_utils import (ConfigType, ForwardResults, MultiConfig,
 # isort: off
 from .mask_classification import MatchMasks, seg_data_to_instance_data
 
+from .hook import GeneratePseudoAnomalyHook
+
 __all__ = [
     'collect_env',
     'register_all_modules',
@@ -67,4 +69,5 @@ __all__ = [
     'MatchMasks',
     'bdd100k_classes',
     'bdd100k_palette',
+    'GeneratePseudoAnomalyHook'
 ]

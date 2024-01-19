@@ -12,7 +12,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 19
 model = dict(
-    type='EncoderDecoder',
+    type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -27,7 +27,8 @@ model = dict(
     ldm=dict(
         type='DDIMSampler', 
         model='configs/ldm_ad/cldm_v15.yaml', 
-        pretrained='checkpoints/v1-5-pruned.ckpt', 
+        ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
+        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
     decode_head=dict(
         type='Mask2FormerHead',
@@ -194,6 +195,8 @@ default_hooks = dict(
         save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationHook'))
+
+custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically
