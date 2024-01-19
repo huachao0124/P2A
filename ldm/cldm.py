@@ -261,7 +261,7 @@ class ControlNet(nn.Module):
         emb = self.time_embed(t_emb)
 
         guided_hint = self.input_hint_block(hint, emb, context)
-
+        
         outs = []
 
         h = x.type(self.dtype)
@@ -284,7 +284,7 @@ class ControlLDM(LatentDiffusion):
 
     def __init__(self, control_stage_config, control_key, only_mid_control, global_average_pooling=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # self.control_model = instantiate_from_config(control_stage_config)
+        self.control_model = instantiate_from_config(control_stage_config)
         self.control_key = control_key
         self.only_mid_control = only_mid_control
         self.control_scales = [1.0] * 13

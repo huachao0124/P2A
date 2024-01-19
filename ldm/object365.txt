@@ -1,0 +1,365 @@
+{'name': 'human', 'id': 1}
+{'name': 'sneakers', 'id': 2}
+{'name': 'chair', 'id': 3}
+{'name': 'hat', 'id': 4}
+{'name': 'lamp', 'id': 5}
+{'name': 'bottle', 'id': 6}
+{'name': 'cabinet/shelf', 'id': 7}
+{'name': 'cup', 'id': 8}
+{'name': 'car', 'id': 9}
+{'name': 'glasses', 'id': 10}
+{'name': 'picture/frame', 'id': 11}
+{'name': 'desk', 'id': 12}
+{'name': 'handbag', 'id': 13}
+{'name': 'street lights', 'id': 14}
+{'name': 'book', 'id': 15}
+{'name': 'plate', 'id': 16}
+{'name': 'helmet', 'id': 17}
+{'name': 'leather shoes', 'id': 18}
+{'name': 'pillow', 'id': 19}
+{'name': 'glove', 'id': 20}
+{'name': 'potted plant', 'id': 21}
+{'name': 'bracelet', 'id': 22}
+{'name': 'flower', 'id': 23}
+{'name': 'monitor', 'id': 24}
+{'name': 'storage box', 'id': 25}
+{'name': 'plants pot/vase', 'id': 26}
+{'name': 'bench', 'id': 27}
+{'name': 'wine glass', 'id': 28}
+{'name': 'boots', 'id': 29}
+{'name': 'dining table', 'id': 30}
+{'name': 'umbrella', 'id': 31}
+{'name': 'boat', 'id': 32}
+{'name': 'flag', 'id': 33}
+{'name': 'speaker', 'id': 34}
+{'name': 'trash bin/can', 'id': 35}
+{'name': 'stool', 'id': 36}
+{'name': 'backpack', 'id': 37}
+{'name': 'sofa', 'id': 38}
+{'name': 'belt', 'id': 39}
+{'name': 'carpet', 'id': 40}
+{'name': 'basket', 'id': 41}
+{'name': 'towel/napkin', 'id': 42}
+{'name': 'slippers', 'id': 43}
+{'name': 'bowl', 'id': 44}
+{'name': 'barrel/bucket', 'id': 45}
+{'name': 'coffee table', 'id': 46}
+{'name': 'suv', 'id': 47}
+{'name': 'toy', 'id': 48}
+{'name': 'tie', 'id': 49}
+{'name': 'bed', 'id': 50}
+{'name': 'traffic light', 'id': 51}
+{'name': 'pen/pencil', 'id': 52}
+{'name': 'microphone', 'id': 53}
+{'name': 'sandals', 'id': 54}
+{'name': 'canned', 'id': 55}
+{'name': 'necklace', 'id': 56}
+{'name': 'mirror', 'id': 57}
+{'name': 'faucet', 'id': 58}
+{'name': 'bicycle', 'id': 59}
+{'name': 'bread', 'id': 60}
+{'name': 'high heels', 'id': 61}
+{'name': 'ring', 'id': 62}
+{'name': 'van', 'id': 63}
+{'name': 'watch', 'id': 64}
+{'name': 'combine with bowl', 'id': 65}
+{'name': 'sink', 'id': 66}
+{'name': 'horse', 'id': 67}
+{'name': 'fish', 'id': 68}
+{'name': 'apple', 'id': 69}
+{'name': 'traffic sign', 'id': 70}
+{'name': 'camera', 'id': 71}
+{'name': 'candle', 'id': 72}
+{'name': 'stuffed animal', 'id': 73}
+{'name': 'cake', 'id': 74}
+{'name': 'motorbike/motorcycle', 'id': 75}
+{'name': 'wild bird', 'id': 76}
+{'name': 'laptop', 'id': 77}
+{'name': 'knife', 'id': 78}
+{'name': 'cellphone', 'id': 79}
+{'name': 'paddle', 'id': 80}
+{'name': 'truck', 'id': 81}
+{'name': 'cow', 'id': 82}
+{'name': 'power outlet', 'id': 83}
+{'name': 'clock', 'id': 84}
+{'name': 'drum', 'id': 85}
+{'name': 'fork', 'id': 86}
+{'name': 'bus', 'id': 87}
+{'name': 'hanger', 'id': 88}
+{'name': 'nightstand', 'id': 89}
+{'name': 'pot/pan', 'id': 90}
+{'name': 'sheep', 'id': 91}
+{'name': 'guitar', 'id': 92}
+{'name': 'traffic cone', 'id': 93}
+{'name': 'tea pot', 'id': 94}
+{'name': 'keyboard', 'id': 95}
+{'name': 'tripod', 'id': 96}
+{'name': 'hockey stick', 'id': 97}
+{'name': 'fan', 'id': 98}
+{'name': 'dog', 'id': 99}
+{'name': 'spoon', 'id': 100}
+{'name': 'blackboard/whiteboard', 'id': 101}
+{'name': 'balloon', 'id': 102}
+{'name': 'air conditioner', 'id': 103}
+{'name': 'cymbal', 'id': 104}
+{'name': 'mouse', 'id': 105}
+{'name': 'telephone', 'id': 106}
+{'name': 'pickup truck', 'id': 107}
+{'name': 'orange', 'id': 108}
+{'name': 'banana', 'id': 109}
+{'name': 'airplane', 'id': 110}
+{'name': 'luggage', 'id': 111}
+{'name': 'skis', 'id': 112}
+{'name': 'soccer', 'id': 113}
+{'name': 'trolley', 'id': 114}
+{'name': 'oven', 'id': 115}
+{'name': 'remote', 'id': 116}
+{'name': 'combine with glove', 'id': 117}
+{'name': 'paper towel', 'id': 118}
+{'name': 'refrigerator', 'id': 119}
+{'name': 'train', 'id': 120}
+{'name': 'tomato', 'id': 121}
+{'name': 'machinery vehicle', 'id': 122}
+{'name': 'tent', 'id': 123}
+{'name': 'shampoo/shower gel', 'id': 124}
+{'name': 'head phone', 'id': 125}
+{'name': 'lantern', 'id': 126}
+{'name': 'donut', 'id': 127}
+{'name': 'cleaning products', 'id': 128}
+{'name': 'sailboat', 'id': 129}
+{'name': 'tangerine', 'id': 130}
+{'name': 'pizza', 'id': 131}
+{'name': 'kite', 'id': 132}
+{'name': 'computer box', 'id': 133}
+{'name': 'elephant', 'id': 134}
+{'name': 'toiletries', 'id': 135}
+{'name': 'gas stove', 'id': 136}
+{'name': 'broccoli', 'id': 137}
+{'name': 'toilet', 'id': 138}
+{'name': 'stroller', 'id': 139}
+{'name': 'shovel', 'id': 140}
+{'name': 'baseball bat', 'id': 141}
+{'name': 'microwave', 'id': 142}
+{'name': 'skateboard', 'id': 143}
+{'name': 'surfboard', 'id': 144}
+{'name': 'surveillance camera', 'id': 145}
+{'name': 'gun', 'id': 146}
+{'name': 'Life saver', 'id': 147}
+{'name': 'cat', 'id': 148}
+{'name': 'lemon', 'id': 149}
+{'name': 'liquid soap', 'id': 150}
+{'name': 'zebra', 'id': 151}
+{'name': 'duck', 'id': 152}
+{'name': 'sports car', 'id': 153}
+{'name': 'giraffe', 'id': 154}
+{'name': 'pumpkin', 'id': 155}
+{'name': 'Accordion/keyboard/piano', 'id': 156}
+{'name': 'radiator', 'id': 157}
+{'name': 'converter', 'id': 158}
+{'name': 'tissue ', 'id': 159}
+{'name': 'carrot', 'id': 160}
+{'name': 'washing machine', 'id': 161}
+{'name': 'vent', 'id': 162}
+{'name': 'cookies', 'id': 163}
+{'name': 'cutting/chopping board', 'id': 164}
+{'name': 'tennis racket', 'id': 165}
+{'name': 'candy', 'id': 166}
+{'name': 'skating and skiing shoes', 'id': 167}
+{'name': 'scissors', 'id': 168}
+{'name': 'folder', 'id': 169}
+{'name': 'baseball', 'id': 170}
+{'name': 'strawberry', 'id': 171}
+{'name': 'bow tie', 'id': 172}
+{'name': 'pigeon', 'id': 173}
+{'name': 'pepper', 'id': 174}
+{'name': 'coffee machine', 'id': 175}
+{'name': 'bathtub', 'id': 176}
+{'name': 'snowboard', 'id': 177}
+{'name': 'suitcase', 'id': 178}
+{'name': 'grapes', 'id': 179}
+{'name': 'ladder', 'id': 180}
+{'name': 'pear', 'id': 181}
+{'name': 'american football', 'id': 182}
+{'name': 'basketball', 'id': 183}
+{'name': 'potato', 'id': 184}
+{'name': 'paint brush', 'id': 185}
+{'name': 'printer', 'id': 186}
+{'name': 'billiards', 'id': 187}
+{'name': 'fire hydrant', 'id': 188}
+{'name': 'goose', 'id': 189}
+{'name': 'projector', 'id': 190}
+{'name': 'sausage', 'id': 191}
+{'name': 'fire extinguisher', 'id': 192}
+{'name': 'extension cord', 'id': 193}
+{'name': 'facial mask', 'id': 194}
+{'name': 'tennis ball', 'id': 195}
+{'name': 'chopsticks', 'id': 196}
+{'name': 'Electronic stove and gas stove', 'id': 197}
+{'name': 'pie', 'id': 198}
+{'name': 'frisbee', 'id': 199}
+{'name': 'kettle', 'id': 200}
+{'name': 'hamburger', 'id': 201}
+{'name': 'golf club', 'id': 202}
+{'name': 'cucumber', 'id': 203}
+{'name': 'clutch', 'id': 204}
+{'name': 'blender', 'id': 205}
+{'name': 'tong', 'id': 206}
+{'name': 'slide', 'id': 207}
+{'name': 'hot dog', 'id': 208}
+{'name': 'toothbrush', 'id': 209}
+{'name': 'facial cleanser', 'id': 210}
+{'name': 'mango', 'id': 211}
+{'name': 'deer', 'id': 212}
+{'name': 'egg', 'id': 213}
+{'name': 'violin', 'id': 214}
+{'name': 'marker', 'id': 215}
+{'name': 'ship', 'id': 216}
+{'name': 'chicken', 'id': 217}
+{'name': 'onion', 'id': 218}
+{'name': 'ice cream', 'id': 219}
+{'name': 'tape', 'id': 220}
+{'name': 'wheelchair', 'id': 221}
+{'name': 'plum', 'id': 222}
+{'name': 'bar soap', 'id': 223}
+{'name': 'scale', 'id': 224}
+{'name': 'watermelon', 'id': 225}
+{'name': 'cabbage', 'id': 226}
+{'name': 'router/modem', 'id': 227}
+{'name': 'golf ball', 'id': 228}
+{'name': 'pine apple', 'id': 229}
+{'name': 'crane', 'id': 230}
+{'name': 'fire truck', 'id': 231}
+{'name': 'peach', 'id': 232}
+{'name': 'cello', 'id': 233}
+{'name': 'notepaper', 'id': 234}
+{'name': 'tricycle', 'id': 235}
+{'name': 'toaster', 'id': 236}
+{'name': 'helicopter', 'id': 237}
+{'name': 'green beans', 'id': 238}
+{'name': 'brush', 'id': 239}
+{'name': 'carriage', 'id': 240}
+{'name': 'cigar', 'id': 241}
+{'name': 'earphone', 'id': 242}
+{'name': 'penguin', 'id': 243}
+{'name': 'hurdle', 'id': 244}
+{'name': 'swing', 'id': 245}
+{'name': 'radio', 'id': 246}
+{'name': 'CD', 'id': 247}
+{'name': 'parking meter', 'id': 248}
+{'name': 'swan', 'id': 249}
+{'name': 'garlic', 'id': 250}
+{'name': 'french fries', 'id': 251}
+{'name': 'horn', 'id': 252}
+{'name': 'avocado', 'id': 253}
+{'name': 'saxophone', 'id': 254}
+{'name': 'trumpet', 'id': 255}
+{'name': 'sandwich', 'id': 256}
+{'name': 'cue', 'id': 257}
+{'name': 'kiwi fruit', 'id': 258}
+{'name': 'bear', 'id': 259}
+{'name': 'fishing rod', 'id': 260}
+{'name': 'cherry', 'id': 261}
+{'name': 'tablet', 'id': 262}
+{'name': 'green vegetables', 'id': 263}
+{'name': 'nuts', 'id': 264}
+{'name': 'corn', 'id': 265}
+{'name': 'key', 'id': 266}
+{'name': 'screwdriver', 'id': 267}
+{'name': 'globe', 'id': 268}
+{'name': 'broom', 'id': 269}
+{'name': 'pliers', 'id': 270}
+{'name': 'hammer', 'id': 271}
+{'name': 'volleyball', 'id': 272}
+{'name': 'eggplant', 'id': 273}
+{'name': 'trophy', 'id': 274}
+{'name': 'board eraser', 'id': 275}
+{'name': 'dates', 'id': 276}
+{'name': 'rice', 'id': 277}
+{'name': 'tape measure/ruler', 'id': 278}
+{'name': 'dumbbell', 'id': 279}
+{'name': 'hamimelon', 'id': 280}
+{'name': 'stapler', 'id': 281}
+{'name': 'camel', 'id': 282}
+{'name': 'lettuce', 'id': 283}
+{'name': 'goldfish', 'id': 284}
+{'name': 'meat balls', 'id': 285}
+{'name': 'medal', 'id': 286}
+{'name': 'toothpaste', 'id': 287}
+{'name': 'antelope', 'id': 288}
+{'name': 'shrimp', 'id': 289}
+{'name': 'rickshaw', 'id': 290}
+{'name': 'trombone', 'id': 291}
+{'name': 'pomegranate', 'id': 292}
+{'name': 'coconut', 'id': 293}
+{'name': 'jellyfish', 'id': 294}
+{'name': 'mushroom', 'id': 295}
+{'name': 'calculator', 'id': 296}
+{'name': 'treadmill', 'id': 297}
+{'name': 'butterfly', 'id': 298}
+{'name': 'egg tart', 'id': 299}
+{'name': 'cheese', 'id': 300}
+{'name': 'pomelo', 'id': 301}
+{'name': 'pig', 'id': 302}
+{'name': 'race car', 'id': 303}
+{'name': 'rice cooker', 'id': 304}
+{'name': 'tuba', 'id': 305}
+{'name': 'crosswalk sign', 'id': 306}
+{'name': 'papaya', 'id': 307}
+{'name': 'hair dryer', 'id': 308}
+{'name': 'green onion', 'id': 309}
+{'name': 'chips', 'id': 310}
+{'name': 'dolphin', 'id': 311}
+{'name': 'sushi', 'id': 312}
+{'name': 'urinal', 'id': 313}
+{'name': 'donkey', 'id': 314}
+{'name': 'electric drill', 'id': 315}
+{'name': 'spring rolls', 'id': 316}
+{'name': 'tortoise/turtle', 'id': 317}
+{'name': 'parrot', 'id': 318}
+{'name': 'flute', 'id': 319}
+{'name': 'measuring cup', 'id': 320}
+{'name': 'shark', 'id': 321}
+{'name': 'steak', 'id': 322}
+{'name': 'poker card', 'id': 323}
+{'name': 'binoculars', 'id': 324}
+{'name': 'llama', 'id': 325}
+{'name': 'radish', 'id': 326}
+{'name': 'noodles', 'id': 327}
+{'name': 'mop', 'id': 328}
+{'name': 'yak', 'id': 329}
+{'name': 'crab', 'id': 330}
+{'name': 'microscope', 'id': 331}
+{'name': 'barbell', 'id': 332}
+{'name': 'Bread/bun', 'id': 333}
+{'name': 'baozi', 'id': 334}
+{'name': 'lion', 'id': 335}
+{'name': 'red cabbage', 'id': 336}
+{'name': 'polar bear', 'id': 337}
+{'name': 'lighter', 'id': 338}
+{'name': 'mangosteen', 'id': 339}
+{'name': 'seal', 'id': 340}
+{'name': 'comb', 'id': 341}
+{'name': 'eraser', 'id': 342}
+{'name': 'pitaya', 'id': 343}
+{'name': 'scallop', 'id': 344}
+{'name': 'pencil case', 'id': 345}
+{'name': 'saw', 'id': 346}
+{'name': 'table tennis  paddle', 'id': 347}
+{'name': 'okra', 'id': 348}
+{'name': 'starfish', 'id': 349}
+{'name': 'monkey', 'id': 350}
+{'name': 'eagle', 'id': 351}
+{'name': 'durian', 'id': 352}
+{'name': 'rabbit', 'id': 353}
+{'name': 'game board', 'id': 354}
+{'name': 'french horn', 'id': 355}
+{'name': 'ambulance', 'id': 356}
+{'name': 'asparagus', 'id': 357}
+{'name': 'hoverboard', 'id': 358}
+{'name': 'pasta', 'id': 359}
+{'name': 'target', 'id': 360}
+{'name': 'hotair balloon', 'id': 361}
+{'name': 'chainsaw', 'id': 362}
+{'name': 'lobster', 'id': 363}
+{'name': 'iron', 'id': 364}
+{'name': 'flashlight', 'id': 365}
