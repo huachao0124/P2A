@@ -629,7 +629,7 @@ class DDIMSampler(BaseModule):
         foreground_masks = []
         contours = []
         for bm in binary_masks:
-            from skimage.filters import threshold_otsu
+            # from skimage.filters import threshold_otsu
             # thresh = threshold_otsu(bm)
             # bm[bm < thresh] = 0
             # bm[bm >= thresh] = 255

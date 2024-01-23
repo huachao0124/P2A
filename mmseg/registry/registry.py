@@ -41,19 +41,19 @@ RUNNER_CONSTRUCTORS = Registry(
 LOOPS = Registry('loop', parent=MMENGINE_LOOPS)
 # manage all kinds of hooks like `CheckpointHook`
 HOOKS = Registry(
-    'hook', parent=MMENGINE_HOOKS, locations=['mmseg.engine.hooks'])
+    'hook', parent=MMENGINE_HOOKS, locations=['mmseg.engine.hooks', 'mmseg.ldm_ad_utils'])
 
 # manage data-related modules
 DATASETS = Registry(
-    'dataset', parent=MMENGINE_DATASETS, locations=['mmseg.datasets'])
+    'dataset', parent=MMENGINE_DATASETS, locations=['mmseg.datasets', 'mmseg.ldm_ad_utils'])
 DATA_SAMPLERS = Registry('data sampler', parent=MMENGINE_DATA_SAMPLERS)
 TRANSFORMS = Registry(
     'transform',
     parent=MMENGINE_TRANSFORMS,
-    locations=['mmseg.datasets.transforms'])
+    locations=['mmseg.datasets.transforms', 'mmseg.ldm_ad_utils'])
 
 # mangage all kinds of modules inheriting `nn.Module`
-MODELS = Registry('model', parent=MMENGINE_MODELS, locations=['mmseg.models'])
+MODELS = Registry('model', parent=MMENGINE_MODELS, locations=['mmseg.models', 'mmseg.ldm_ad_utils'])
 # mangage all kinds of model wrappers like 'MMDistributedDataParallel'
 MODEL_WRAPPERS = Registry(
     'model_wrapper',

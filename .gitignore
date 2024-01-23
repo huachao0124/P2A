@@ -119,11 +119,4 @@ mmseg/.mim
 # Pytorch
 *.pth
 checkpoints
-samples/0.jpg
-samples/1.jpg
-samples/2.jpg
-samples/3.jpg
-samples/16.jpg
-samples/17.jpg
-samples/18.jpg
-samples/19.jpg
+samples
