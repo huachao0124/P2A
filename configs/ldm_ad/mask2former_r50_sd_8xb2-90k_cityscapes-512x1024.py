@@ -13,7 +13,7 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size,
     test_cfg=dict(size_divisor=32))
-num_classes = 19
+num_classes = 20
 model = dict(
     type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
@@ -125,7 +125,7 @@ model = dict(
             oversample_ratio=3.0,
             importance_sample_ratio=0.75,
             assigner=dict(
-                type='mmdet.HungarianAssigner',
+                type='FixedAssigner',
                 match_costs=[
                     dict(type='mmdet.ClassificationCost', weight=2.0),
                     dict(
@@ -158,7 +158,7 @@ train_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-train_dataloader = dict(dataset=dict(type=dataset_type, pipeline=train_pipeline))
+train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=40, pipeline=train_pipeline))
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)

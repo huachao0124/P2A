@@ -66,10 +66,12 @@ class CityscapesWithAnomaliesDataset(CityscapesDataset):
         else:
             data_info['sample_idx'] = len(self) + idx
         # select random anomalies
-        curr_num_anomalies = random.choices(range(4), weights=[2, 10, 5, 2], k = 1)[0]
-        selected_anomalies_indices = random.choices(range(self.num_anomalies), k = curr_num_anomalies)
+        curr_num_anomalies = random.choices(range(4), weights=[2, 10, 5, 2], k=1)[0]
+        selected_anomalies_indices = random.choices(range(self.num_anomalies), k=curr_num_anomalies)
         data_info['anomalies'] = self.anomalies[selected_anomalies_indices]
+        
         return data_info
+    
 
 @TRANSFORMS.register_module()
 class PasteAnomalies(BaseTransform):
@@ -87,7 +89,7 @@ class PasteAnomalies(BaseTransform):
     
     def transform(self, results: dict) -> dict:
         
-        for anomaly in results['anomalies']:
+        for idx, anomaly in enumerate(results['anomalies']):
             k = np.random.randint(0, 4)
             image = np.rot90(anomaly['image'], k)
             mask = np.rot90(anomaly['mask'], k)
@@ -100,7 +102,7 @@ class PasteAnomalies(BaseTransform):
             image = mmcv.imrotate(image, angle=angle)
             mask = mmcv.imrotate(mask, angle=angle)
             
-            long_side = random.randint(32, 512 // 2 ** (len(results['anomalies']) - 1))
+            long_side = random.randint(32, 1024 // 2 ** len(results['anomalies']))
             h, w = image.shape[:2]
             new_h, new_w = int(h / max(h, w) * long_side), int(w / max(h, w) * long_side)
             
@@ -109,9 +111,12 @@ class PasteAnomalies(BaseTransform):
             
             img_h, img_w = results['img'].shape[:2]
             x = random.randint(0, img_w - new_w)
-            y = random.randint(0, img_h - new_h)
+            y = random.randint(448, img_h - new_h)
             results['img'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = resize_image[resize_mask > 0]
             results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = 19
+            
+            from PIL import Image
+            Image.fromarray(results['img']).save(f'samples/{idx}_0.jpg')
         
         return results
     

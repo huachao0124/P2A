@@ -13,7 +13,7 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size,
     test_cfg=dict(size_divisor=32))
-num_classes = 19
+num_classes = 20
 model = dict(
     type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
@@ -34,13 +34,13 @@ model = dict(
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
     decode_head=dict(
-        type='Mask2FormerHead',
+        type='FixedMatchingMask2FormerHead',
         in_channels=[256, 512, 1024, 2048],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
         num_classes=num_classes,
-        num_queries=100,
+        num_queries=num_classes,
         num_transformer_feat_level=3,
         align_corners=False,
         pixel_decoder=dict(
@@ -125,7 +125,7 @@ model = dict(
             oversample_ratio=3.0,
             importance_sample_ratio=0.75,
             assigner=dict(
-                type='mmdet.HungarianAssigner',
+                type='FixedAssigner',
                 match_costs=[
                     dict(type='mmdet.ClassificationCost', weight=2.0),
                     dict(
@@ -147,18 +147,18 @@ train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
     dict(type='PasteAnomalies'), 
-    # dict(
-    #     type='RandomChoiceResize',
-    #     scales=[int(1024 * x * 0.1) for x in range(5, 21)],
-    #     resize_type='ResizeShortestEdge',
-    #     max_size=4096),
-    # dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
-    # dict(type='RandomFlip', prob=0.5),
-    # dict(type='PhotoMetricDistortion'),
-    # dict(type='PackSegInputs')
+    dict(
+        type='RandomChoiceResize',
+        scales=[int(1024 * x * 0.1) for x in range(5, 21)],
+        resize_type='ResizeShortestEdge',
+        max_size=4096),
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
+    dict(type='RandomFlip', prob=0.5),
+    dict(type='PhotoMetricDistortion'),
+    dict(type='PackSegInputs')
 ]
 
-train_dataloader = dict(dataset=dict(type=dataset_type, pipeline=train_pipeline))
+train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=40, pipeline=train_pipeline))
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)

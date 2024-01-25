@@ -120,3 +120,5 @@ mmseg/.mim
 *.pth
 checkpoints
 samples
+test_ldm.py
+test.ipynb

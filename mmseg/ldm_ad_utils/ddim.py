@@ -497,8 +497,9 @@ class DDIMSampler(BaseModule):
         total_steps = timesteps if ddim_use_original_steps else timesteps.shape[0]
         
         intermediates = {'cross_attn_maps': []}
-        iterator = tqdm(time_range, desc='DDIM Sampler', total=total_steps)
-        for i, step in enumerate(iterator):
+        # iterator = tqdm(time_range, desc='DDIM Sampler', total=total_steps)
+        # for i, step in enumerate(iterator):
+        for i, step in enumerate(time_range):
             index = total_steps - i - 1
             
             ts = torch.full((b,), step, device=device, dtype=torch.long)
@@ -555,8 +556,9 @@ class DDIMSampler(BaseModule):
         time_range = reversed(range(0,timesteps)) if ddim_use_original_steps else np.flip(timesteps)
         total_steps = timesteps if ddim_use_original_steps else timesteps.shape[0]
         
-        iterator = tqdm(time_range, desc='DDIM Sampler', total=total_steps)
-        for i, step in enumerate(iterator):
+        # iterator = tqdm(time_range, desc='DDIM Sampler', total=total_steps)
+        # for i, step in enumerate(iterator):
+        for i, step in enumerate(time_range):
             index = total_steps - i - 1
             
             ts = torch.full((b,), step, device=device, dtype=torch.long)
