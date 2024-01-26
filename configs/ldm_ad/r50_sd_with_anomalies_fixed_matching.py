@@ -15,7 +15,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 20
 model = dict(
-    type='EncoderDecoderLDM',
+    type='EncoderDecoderWithLDMBackbone',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -35,7 +35,7 @@ model = dict(
     ), 
     decode_head=dict(
         type='FixedMatchingMask2FormerHead',
-        in_channels=[256, 512, 1024, 2048],
+        in_channels=[256, 832, 1664, 3328],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
@@ -45,6 +45,7 @@ model = dict(
         align_corners=False,
         pixel_decoder=dict(
             type='mmdet.MSDeformAttnPixelDecoder',
+            in_channels=[256, 832, 1664, 3328],
             num_outs=3,
             norm_cfg=dict(type='GN', num_groups=32),
             act_cfg=dict(type='ReLU'),
@@ -142,11 +143,12 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 
+buffer_path = 'ldm/buffer2'
 # dataset config
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='PasteAnomalies'), 
+    dict(type='PasteAnomalies', buffer_path=buffer_path), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],

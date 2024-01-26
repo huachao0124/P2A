@@ -484,6 +484,7 @@ class CrossAttention(nn.Module):
         is_self_attn = context is None
         
         q = self.to_q(x)
+                
         context = default(context, x)
         k = self.to_k(context)
         v = self.to_v(context)
@@ -1065,6 +1066,7 @@ class ControlledUnetModel(UNetModel):
     
     def forward_features(self, x, timesteps=None, context=None, control=None, only_mid_control=False, **kwargs):
         hs = []
+        return_features = []
         with torch.no_grad():
             t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
             emb = self.time_embed(t_emb)
@@ -1082,13 +1084,14 @@ class ControlledUnetModel(UNetModel):
         if control is not None:
             h = (h[0] + control.pop(), h[1])
 
-        # for i, module in enumerate(self.output_blocks):
-        #     if only_mid_control or control is None:
-        #         h = (torch.cat([h[0], hs[-(i+1)]], dim=1), h[1])
-        #     else:
-        #         h = (torch.cat([h[0], hs[-(i+1)] + control[-(i+1)]], dim=1), h[1])
-        #     h = module(h, emb, context)
-        #     h = (h[0], None)
-        # h = h[0].type(x.dtype)
+        for i, module in enumerate(self.output_blocks):
+            if only_mid_control or control is None:
+                h = (torch.cat([h[0], hs[-(i+1)]], dim=1), h[1])
+            else:
+                h = (torch.cat([h[0], hs[-(i+1)] + control[-(i+1)]], dim=1), h[1])
+            h = module(h, emb, context)
+            return_features.append(h[0])
+            h = (h[0], None)
+        h = h[0].type(x.dtype)
         
-        return hs
+        return return_features

@@ -7,6 +7,7 @@ from mmcv.transforms.base import BaseTransform
 import mmengine.fileio as fileio
 
 import random
+import os
 import os.path as osp
 import pickle
 import copy
@@ -39,7 +40,6 @@ class CityscapesWithAnomaliesDataset(CityscapesDataset):
                  img_size = (1024, 2048), 
                  **kwargs) -> None:
         self.num_anomalies = num_anomalies
-        self.anomalies = [None for _ in range(num_anomalies)]
         super().__init__(**kwargs)
     
     def get_data_info(self, idx: int) -> dict:
@@ -66,21 +66,14 @@ class CityscapesWithAnomaliesDataset(CityscapesDataset):
             data_info['sample_idx'] = idx
         else:
             data_info['sample_idx'] = len(self) + idx
-        # select random anomalies
-        curr_num_anomalies = random.choices(range(4), weights=[2, 10, 5, 2], k=1)[0]
-        selected_anomalies_indices = random.choices(range(self.num_anomalies), k=curr_num_anomalies)
-        data_info['anomalies'] = []
-        for idx in selected_anomalies_indices:
-            with open(f'ldm/buffer/{idx}.pkl', 'rb') as f:
-                data_info['anomalies'].append(pickle.load(f))
         # data_info['anomalies'] = self.anomalies[selected_anomalies_indices]
-        
+        data_info['num_anomalies'] = self.num_anomalies
         return data_info
     
 
 @TRANSFORMS.register_module()
 class PasteAnomalies(BaseTransform):
-    def __init__(self, rotate_prob=0.5, flip_prob=0.5, degree=(-20, 20)):
+    def __init__(self, rotate_prob=0.5, flip_prob=0.5, degree=(-20, 20), buffer_path='ldm/buffer'):
         self.rotate_prob = rotate_prob
         self.flip_prob = flip_prob
         assert 0 <= rotate_prob <= 1 and 0 <= flip_prob <= 1
@@ -91,8 +84,19 @@ class PasteAnomalies(BaseTransform):
             self.degree = degree
         assert len(self.degree) == 2, f'degree {self.degree} should be a ' \
                                       f'tuple of (min, max)'
+        self.buffer_path = buffer_path
     
-    def transform(self, results: dict) -> dict:
+    def transform(self, results: dict) -> dict:        
+        # select random anomalies
+        curr_num_anomalies = random.choices(range(4), weights=[2, 10, 5, 2], k=1)[0]
+        selected_anomalies_indices = random.choices(range(results['num_anomalies']), k=curr_num_anomalies)
+        results['anomalies'] = []
+        for idx in selected_anomalies_indices:
+            try:
+                with open(f'{self.buffer_path}/{idx}.pkl', 'rb') as f:
+                    results['anomalies'].append(pickle.load(f))
+            except FileNotFoundError:
+                print("before generation")
         
         for idx, anomaly in enumerate(results['anomalies']):
             k = np.random.randint(0, 4)

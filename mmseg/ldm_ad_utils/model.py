@@ -54,8 +54,22 @@ class EncoderDecoderWithLDMBackbone(EncoderDecoderLDM):
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
         x = self.backbone(inputs)
-        for b in x:
-            print(x.shape)
+        
+        encoder_posterior = self.ldm.model.encode_first_stage(inputs)
+        z = self.ldm.model.get_first_stage_encoding(encoder_posterior).detach()
+        t = torch.full((z.shape[0], ), 50, device=inputs.device, dtype=torch.long)
+        cond = {"c_concat": None, "c_crossattn": [self.ldm.model.get_learned_conditioning([""] * z.shape[0])]}
+        all_sd_features = self.ldm.model.model.diffusion_model.forward_features(z, t, context=cond["c_crossattn"])
+        out_indices = (11, 7, 4)
+        sd_features = []
+        for idx in out_indices:
+            sd_features.append(all_sd_features[idx])
+        
+        out_features = [x[0]]
+        for layer in range(1, 4):
+            out_features.append(torch.cat((x[layer], sd_features[layer - 1]), dim=1))
+            
+        return out_features
 
 
 @MODELS.register_module()

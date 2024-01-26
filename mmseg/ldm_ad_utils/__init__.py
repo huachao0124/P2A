@@ -3,6 +3,7 @@ from .model import EncoderDecoderLDM, EncoderDecoderWithLDMBackbone, FixedMatchi
 from .hook import GeneratePseudoAnomalyHook
 from .dataset import CityscapesWithAnomaliesDataset, PasteAnomalies
 from .utils import FixedAssigner
+from .loop import MyIterBasedTrainLoop
 
 
 __all__ = ['DDIMSampler', 
@@ -12,4 +13,5 @@ __all__ = ['DDIMSampler',
            'GeneratePseudoAnomalyHook', 
            'CityscapesWithAnomaliesDataset', 
            'PasteAnomalies', 
-           'FixedAssigner']
+           'FixedAssigner', 
+           'MyIterBasedTrainLoop']

@@ -12,21 +12,22 @@ import cv2
 import random
 from PIL import Image
 import torch
-
+import threading
 
 @HOOKS.register_module()
 class GeneratePseudoAnomalyHook(Hook):
     priority = 'VERY_LOW'
     
     def before_train(self, runner):
+        print("start generation")
         
         with open('ldm/object365.txt', 'r') as f:
             content = f.readlines()
         self.objects = [eval(c)['name'] for c in content]
         
         rank, word_size = get_dist_info()
-        if rank == 0 and not os.path.exists('ldm/buffer'):
-            os.makedirs('ldm/buffer')
+        if rank == 0 and not os.path.exists(runner.buffer_path):
+            os.makedirs(runner.buffer_path)
             
         interval = runner.train_dataloader.dataset.num_anomalies // word_size
         
@@ -85,12 +86,14 @@ class GeneratePseudoAnomalyHook(Hook):
                 extracted_img = cv2.cvtColor(extracted_img, cv2.COLOR_RGB2BGR)
                 extracted_mask = cv2.resize(mask[y:y+h, x:x+w], (new_w, new_h))
                 # self.plot_mask_on_img(extracted_img, extracted_mask, rank * interval + idx + i)
-                with open(f'ldm/buffer/{rank * interval + idx + i}.pkl', 'wb') as f:
+                with open(f'{runner.buffer_path}/{rank * interval + idx + i}.pkl', 'wb') as f:
                     pickle.dump({'image': extracted_img, 'mask': extracted_mask}, f)
-    
+            
+        torch.distributed.barrier()
+        print("finish generation")    
     
     def before_train_iter(self, runner, batch_idx, data_batch):
-        if batch_idx % 100 == 0:
+        if batch_idx != 0 and batch_idx % 100 == 0:
             rank, word_size = get_dist_info()
             interval = runner.train_dataloader.dataset.num_anomalies // word_size
             
@@ -145,7 +148,7 @@ class GeneratePseudoAnomalyHook(Hook):
                 extracted_img = cv2.resize(img[y:y+h, x:x+w], (new_w, new_h))
                 extracted_mask = cv2.resize(mask[y:y+h, x:x+w], (new_w, new_h))
                 # self.plot_mask_on_img(extracted_img, extracted_mask, replace_indices[i])
-                with open(f'ldm/buffer/{replace_indices[i]}.pkl', 'wb') as f:
+                with open(f'{runner.buffer_path}/{replace_indices[i]}.pkl', 'wb') as f:
                     pickle.dump({'image': extracted_img, 'mask': extracted_mask}, f)
     
     
