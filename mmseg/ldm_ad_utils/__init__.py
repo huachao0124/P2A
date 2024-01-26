@@ -3,7 +3,6 @@ from .model import EncoderDecoderLDM, FixedMatchingMask2FormerHead
 from .hook import GeneratePseudoAnomalyHook
 from .dataset import CityscapesWithAnomaliesDataset, PasteAnomalies
 from .utils import FixedAssigner
-from .runner import RunnerWithInit
 
 
 __all__ = ['DDIMSampler', 
@@ -12,5 +11,4 @@ __all__ = ['DDIMSampler',
            'GeneratePseudoAnomalyHook', 
            'CityscapesWithAnomaliesDataset', 
            'PasteAnomalies', 
-           'FixedAssigner', 
-           'RunnerWithInit']
+           'FixedAssigner']

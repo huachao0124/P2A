@@ -33,12 +33,13 @@ class CityscapesWithAnomaliesDataset(CityscapesDataset):
                  [107, 142, 35], [152, 251, 152], [70, 130, 180],
                  [220, 20, 60], [255, 0, 0], [0, 0, 142], [0, 0, 70],
                  [0, 60, 100], [0, 80, 100], [0, 0, 230], [119, 11, 32], 
-                 [255, 0, 0]])
+                 [0, 255, 0]])
     def __init__(self,
                  num_anomalies = 100, 
+                 img_size = (1024, 2048), 
                  **kwargs) -> None:
         self.num_anomalies = num_anomalies
-        self.anomalies = np.array([None] * num_anomalies)
+        self.anomalies = [None for _ in range(num_anomalies)]
         super().__init__(**kwargs)
     
     def get_data_info(self, idx: int) -> dict:
@@ -68,7 +69,11 @@ class CityscapesWithAnomaliesDataset(CityscapesDataset):
         # select random anomalies
         curr_num_anomalies = random.choices(range(4), weights=[2, 10, 5, 2], k=1)[0]
         selected_anomalies_indices = random.choices(range(self.num_anomalies), k=curr_num_anomalies)
-        data_info['anomalies'] = self.anomalies[selected_anomalies_indices]
+        data_info['anomalies'] = []
+        for idx in selected_anomalies_indices:
+            with open(f'ldm/buffer/{idx}.pkl', 'rb') as f:
+                data_info['anomalies'].append(pickle.load(f))
+        # data_info['anomalies'] = self.anomalies[selected_anomalies_indices]
         
         return data_info
     
