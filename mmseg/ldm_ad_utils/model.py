@@ -46,7 +46,16 @@ class EncoderDecoderLDM(EncoderDecoder):
                  data_preprocessor,
                  pretrained,
                  init_cfg)
-        self.ldm = MODELS.build(ldm)        
+        self.ldm = MODELS.build(ldm)
+    
+
+@MODELS.register_module()
+class EncoderDecoderWithLDMBackbone(EncoderDecoderLDM):
+    def extract_feat(self, inputs: Tensor) -> List[Tensor]:
+        """Extract features from images."""
+        x = self.backbone(inputs)
+        for b in x:
+            print(x.shape)
 
 
 @MODELS.register_module()

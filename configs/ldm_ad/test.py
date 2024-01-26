@@ -15,7 +15,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 20
 model = dict(
-    type='EncoderDecoderLDM',
+    type='EncoderDecoderWithLDMBackbone',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
