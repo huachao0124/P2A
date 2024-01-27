@@ -207,8 +207,7 @@ default_hooks = dict(
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
 
-custom_hooks = [dict(type='TextInitQueriesHook')]
-# custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
+custom_hooks = [dict(type='TextInitQueriesHook'), dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically

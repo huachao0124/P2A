@@ -1,6 +1,6 @@
 _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
-easy_start = True
+easy_start = False
 
 # dataset settings
 dataset_type = 'CityscapesWithAnomaliesDataset'

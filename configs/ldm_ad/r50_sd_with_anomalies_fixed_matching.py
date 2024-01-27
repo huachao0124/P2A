@@ -1,5 +1,7 @@
 _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
+easy_start = True
+
 # dataset settings
 dataset_type = 'CityscapesWithAnomaliesDataset'
 data_root = 'data/cityscapes/'
@@ -206,7 +208,7 @@ default_hooks = dict(
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationHook', draw=True))
 
-# custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
+custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically
