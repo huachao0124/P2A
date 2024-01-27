@@ -1,5 +1,7 @@
 _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
+easy_start = True
+
 # dataset settings
 dataset_type = 'CityscapesWithAnomaliesDataset'
 data_root = 'data/cityscapes/'
@@ -15,7 +17,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 20
 model = dict(
-    type='EncoderDecoderWithLDMBackbone',
+    type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -35,7 +37,7 @@ model = dict(
     ), 
     decode_head=dict(
         type='FixedMatchingMask2FormerHead',
-        in_channels=[256, 832, 1664, 3328],
+        in_channels=[256, 512, 1024, 2048],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
@@ -45,7 +47,6 @@ model = dict(
         align_corners=False,
         pixel_decoder=dict(
             type='mmdet.MSDeformAttnPixelDecoder',
-            in_channels=[256, 832, 1664, 3328],
             num_outs=3,
             norm_cfg=dict(type='GN', num_groups=32),
             act_cfg=dict(type='ReLU'),
@@ -193,7 +194,7 @@ param_scheduler = [
 vis_backends = [dict(type='LocalVisBackend'), dict(type='TensorboardVisBackend')]
 visualizer = dict(
     type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=90000, val_interval=5000)
+train_cfg = dict(type='MyIterBasedTrainLoop', max_iters=90000, val_interval=5000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
@@ -204,8 +205,9 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
 
+custom_hooks = [dict(type='TextInitQueriesHook')]
 # custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically

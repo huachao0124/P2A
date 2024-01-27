@@ -47,13 +47,22 @@ class EncoderDecoderLDM(EncoderDecoder):
                  pretrained,
                  init_cfg)
         self.ldm = MODELS.build(ldm)
+        
+        
+        def extract_feat(self, inputs: Tensor) -> List[Tensor]:
+            """Extract features from images."""
+            x = self.backbone(inputs)
+            print("K" * 50)
+            print(self.text_embeddings.shape)
+            return x
+        
     
 
 @MODELS.register_module()
 class EncoderDecoderWithLDMBackbone(EncoderDecoderLDM):
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
-        x = self.backbone(inputs)
+        r50_features = self.backbone(inputs)
         
         encoder_posterior = self.ldm.model.encode_first_stage(inputs)
         z = self.ldm.model.get_first_stage_encoding(encoder_posterior).detach()
@@ -65,10 +74,13 @@ class EncoderDecoderWithLDMBackbone(EncoderDecoderLDM):
         for idx in out_indices:
             sd_features.append(all_sd_features[idx])
         
-        out_features = [x[0]]
+        out_features = [r50_features[0]]
         for layer in range(1, 4):
-            out_features.append(torch.cat((x[layer], sd_features[layer - 1]), dim=1))
-            
+            out_features.append(torch.cat((r50_features[layer], sd_features[layer - 1]), dim=1))
+        
+        if self.with_neck:
+            out_features = self.neck(out_features)
+        
         return out_features
 
 
@@ -90,6 +102,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
                  num_classes,
                  align_corners=False,
                  ignore_index=255,
+                 cond_channels=768, 
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -100,6 +113,9 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
 
         feat_channels = kwargs['feat_channels']
         self.cls_embed = nn.Linear(feat_channels, self.num_classes + 1)
+        
+        self.text_embed_channel = nn.Linear(cond_channels, feat_channels)
+        
 
     def _seg_data_to_instance_data(self, batch_data_samples: SampleList):
         """Perform forward propagation to convert paradigm from MMSegmentation
@@ -408,10 +424,9 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
             decoder_inputs.append(decoder_input)
             decoder_positional_encodings.append(decoder_positional_encoding)
         # shape (num_queries, c) -> (batch_size, num_queries, c)
-        query_feat = self.query_feat.weight.unsqueeze(0).repeat(
-            (batch_size, 1, 1))
-        query_embed = self.query_embed.weight.unsqueeze(0).repeat(
-            (batch_size, 1, 1))
+        query_feat = (self.query_feat.weight + \
+            self.text_embed_channel(self.text_embed)).unsqueeze(0).repeat((batch_size, 1, 1))
+        query_embed = self.query_embed.weight.unsqueeze(0).repeat((batch_size, 1, 1))
 
         cls_pred_list = []
         mask_pred_list = []

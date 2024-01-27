@@ -15,7 +15,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 20
 model = dict(
-    type='EncoderDecoderWithLDMBackbone',
+    type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -142,11 +142,12 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 
+buffer_path = 'ldm/buffer_with_anomalies_with_textinit'
 # dataset config
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='PasteAnomalies'), 
+    # dict(type='PasteAnomalies', buffer_path=buffer_path), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -158,7 +159,7 @@ train_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=16, pipeline=train_pipeline))
+train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=100, pipeline=train_pipeline))
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)
@@ -188,9 +189,13 @@ param_scheduler = [
 ]
 
 # training schedule for 90k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=90000, val_interval=5000)
+train_cfg = dict(type='MyIterBasedTrainLoop', max_iters=1, val_interval=5000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
+
+vis_backends = [dict(type='LocalVisBackend'), dict(type='TensorboardVisBackend')]
+visualizer = dict(
+    type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=50, log_metric_by_epoch=False),
@@ -201,7 +206,9 @@ default_hooks = dict(
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationHook'))
 
-custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
+
+custom_hooks = [dict(type='TextInitQueriesHook')]
+# custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically

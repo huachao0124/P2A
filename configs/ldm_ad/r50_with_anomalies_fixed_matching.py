@@ -1,5 +1,7 @@
 _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
+easy_start = True
+
 # dataset settings
 dataset_type = 'CityscapesWithAnomaliesDataset'
 data_root = 'data/cityscapes/'
@@ -159,7 +161,7 @@ train_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=100, pipeline=train_pipeline))
+train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=1000, pipeline=train_pipeline))
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)
@@ -189,6 +191,9 @@ param_scheduler = [
 ]
 
 # training schedule for 90k
+vis_backends = [dict(type='LocalVisBackend'), dict(type='TensorboardVisBackend')]
+visualizer = dict(
+    type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 train_cfg = dict(type='MyIterBasedTrainLoop', max_iters=90000, val_interval=5000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
@@ -200,7 +205,7 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook'))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
 
 custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 

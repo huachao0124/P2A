@@ -13,21 +13,46 @@ import random
 from PIL import Image
 import torch
 import threading
+from tqdm import tqdm
+
+
+classes = ('road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+                    'traffic light', 'traffic sign', 'vegetation', 'terrain',
+                    'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
+                    'motorcycle', 'bicycle', 'anomaly')
+
+
+@HOOKS.register_module()
+class TextInitQueriesHook(Hook):
+    priority = 'VERY_LOW'
+    
+    def before_run(self, runner):
+        
+        if is_model_wrapper(runner.model):
+            model = runner.model.module
+        else:
+            model = runner.model
+        
+        text_embeddings = model.ldm.model.get_learned_conditioning([' '.join(classes)])[0][1:23]
+        model.decode_head.text_embed = torch.cat((text_embeddings[:6], torch.mean(text_embeddings[6:8], dim=0, keepdim=True), \
+                                        torch.mean(text_embeddings[8:10], dim=0, keepdim=True), text_embeddings[10:]), dim=0)
 
 @HOOKS.register_module()
 class GeneratePseudoAnomalyHook(Hook):
     priority = 'VERY_LOW'
     
     def before_train(self, runner):
-        print("start generation")
-        
         with open('ldm/object365.txt', 'r') as f:
             content = f.readlines()
         self.objects = [eval(c)['name'] for c in content]
         
+        if runner.easy_start:
+            return
+        
         rank, word_size = get_dist_info()
         if rank == 0 and not os.path.exists(runner.buffer_path):
             os.makedirs(runner.buffer_path)
+            print("start generation")
             
         interval = runner.train_dataloader.dataset.num_anomalies // word_size
         
@@ -55,8 +80,7 @@ class GeneratePseudoAnomalyHook(Hook):
         else:
             model = runner.model
         
-        
-        for idx in range(0, num_samples, 4):
+        for idx in tqdm(range(0, num_samples, 4)):
             num_s = 4 if idx + 4 < num_samples else num_samples - idx
             cond = {"c_concat": None, "c_crossattn": [model.ldm.model.get_learned_conditioning(p_prompts[idx: idx + num_s])]}
             un_cond = {"c_concat": None, "c_crossattn": [model.ldm.model.get_learned_conditioning([n_prompt] * num_s)]}
@@ -90,14 +114,15 @@ class GeneratePseudoAnomalyHook(Hook):
                     pickle.dump({'image': extracted_img, 'mask': extracted_mask}, f)
             
         torch.distributed.barrier()
-        print("finish generation")    
+        if rank == 0:
+            print("finish generation")    
     
     def before_train_iter(self, runner, batch_idx, data_batch):
-        if batch_idx != 0 and batch_idx % 100 == 0:
+        if batch_idx != 0 and batch_idx % 1000 == 0:
             rank, word_size = get_dist_info()
             interval = runner.train_dataloader.dataset.num_anomalies // word_size
             
-            num_samples = 4
+            num_samples = 16
             prompts = [['a', 'photo', 'of', 'a'] for _ in range(interval)]
             a_prompt = 'best quality'
             select_objects = random.choices(self.objects, k=num_samples)        
@@ -113,7 +138,7 @@ class GeneratePseudoAnomalyHook(Hook):
             self_control = True
             strength = 1.4
             scale = 9.0
-            seed = int(time.time()) % 1000000
+            seed = int(time.time() + rank) % 1000000
             eta = 1.0
             
             if is_distributed():
@@ -121,35 +146,37 @@ class GeneratePseudoAnomalyHook(Hook):
             else:
                 model = runner.model
             
-            cond = {"c_concat": None, "c_crossattn": [model.ldm.model.get_learned_conditioning(p_prompts)]}
-            un_cond = {"c_concat": None, "c_crossattn": [model.ldm.model.get_learned_conditioning([n_prompt] * num_samples)]}
+            for idx in range(0, num_samples, 4):
+                num_s = 4 if idx + 4 < num_samples else num_samples - idx
+                cond = {"c_concat": None, "c_crossattn": [model.ldm.model.get_learned_conditioning(p_prompts[idx: idx + num_s])]}
+                un_cond = {"c_concat": None, "c_crossattn": [model.ldm.model.get_learned_conditioning([n_prompt] * num_s)]}
             
-            H, W = image_resolution, image_resolution
-            shape = (4, H // 8, W // 8)
-            imgs, intermediates = model.ldm.sample_create_image_mask(ddim_steps, num_samples,
-                                                            shape, cond, verbose=False, eta=eta,
-                                                            unconditional_guidance_scale=scale,
-                                                            unconditional_conditioning=un_cond, 
-                                                            control_start_step=control_start_step, 
-                                                            control_end_step=control_end_step, 
-                                                            self_control=self_control)
+                H, W = image_resolution, image_resolution
+                shape = (4, H // 8, W // 8)
+                imgs, intermediates = model.ldm.sample_create_image_mask(ddim_steps, num_s,
+                                                                shape, cond, verbose=False, eta=eta,
+                                                                unconditional_guidance_scale=scale,
+                                                                unconditional_conditioning=un_cond, 
+                                                                control_start_step=control_start_step, 
+                                                                control_end_step=control_end_step, 
+                                                                self_control=self_control)
             
             
-            imgs = model.ldm.model.decode_first_stage(imgs)
-            B, C, H, W = imgs.shape
+                imgs = model.ldm.model.decode_first_stage(imgs)
+                B, C, H, W = imgs.shape
             
-            imgs = ((imgs.permute(0, 2, 3, 1) + 1) / 2 * 255).cpu().numpy().clip(0, 255).astype(np.uint8)
-            masks = (intermediates['pseudo_masks'].squeeze(1).cpu().numpy() * 255).astype(np.uint8)
-            contours = intermediates['contours']
-            replace_indices = random.sample(range(rank * interval, (rank + 1) * interval), k=num_samples)
-            for i, (img, mask, contour) in enumerate(zip(imgs, masks, contours)):
-                x, y, w, h = cv2.boundingRect(contour)
-                new_w, new_h = int(w / max(w, h) * W), int(h / max(w, h) * H)
-                extracted_img = cv2.resize(img[y:y+h, x:x+w], (new_w, new_h))
-                extracted_mask = cv2.resize(mask[y:y+h, x:x+w], (new_w, new_h))
-                # self.plot_mask_on_img(extracted_img, extracted_mask, replace_indices[i])
-                with open(f'{runner.buffer_path}/{replace_indices[i]}.pkl', 'wb') as f:
-                    pickle.dump({'image': extracted_img, 'mask': extracted_mask}, f)
+                imgs = ((imgs.permute(0, 2, 3, 1) + 1) / 2 * 255).cpu().numpy().clip(0, 255).astype(np.uint8)
+                masks = (intermediates['pseudo_masks'].squeeze(1).cpu().numpy() * 255).astype(np.uint8)
+                contours = intermediates['contours']
+                replace_indices = random.sample(range(rank * interval, (rank + 1) * interval), k=num_s)
+                for i, (img, mask, contour) in enumerate(zip(imgs, masks, contours)):
+                    x, y, w, h = cv2.boundingRect(contour)
+                    new_w, new_h = int(w / max(w, h) * W), int(h / max(w, h) * H)
+                    extracted_img = cv2.resize(img[y:y+h, x:x+w], (new_w, new_h))
+                    extracted_mask = cv2.resize(mask[y:y+h, x:x+w], (new_w, new_h))
+                    # self.plot_mask_on_img(extracted_img, extracted_mask, replace_indices[i])
+                    with open(f'{runner.buffer_path}/{replace_indices[i]}.pkl', 'wb') as f:
+                        pickle.dump({'image': extracted_img, 'mask': extracted_mask}, f)
     
     
     def plot_mask_on_img(self, img, mask, idx):

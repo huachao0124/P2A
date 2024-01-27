@@ -6,8 +6,8 @@ import os.path as osp
 
 from mmengine.config import Config, DictAction
 from mmengine.logging import print_log
-from mmengine.runner import Runner
-
+# from mmengine.runner import Runner
+from mmseg.ldm_ad_utils.runner import Runner
 from mmseg.registry import RUNNERS
 
 
@@ -96,7 +96,7 @@ def main():
         # if 'runner_type' is set in the cfg
         runner = RUNNERS.build(cfg)
     runner.buffer_path = cfg.buffer_path
-    print(runner.buffer_path)
+    runner.easy_start = cfg.easy_start
     # start training
     runner.train()
 
