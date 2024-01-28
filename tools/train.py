@@ -95,8 +95,6 @@ def main():
         # build customized runner from the registry
         # if 'runner_type' is set in the cfg
         runner = RUNNERS.build(cfg)
-    runner.buffer_path = cfg.buffer_path
-    runner.easy_start = cfg.easy_start
     # start training
     runner.train()
 

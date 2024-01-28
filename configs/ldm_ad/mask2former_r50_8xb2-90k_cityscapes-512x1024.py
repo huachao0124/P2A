@@ -1,14 +1,6 @@
 _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
-# dataset settings
-train_dataset_type = 'CityscapesWithAnomaliesDataset'
-train_data_root = 'data/cityscapes/'
 crop_size = (512, 1024)
-test_dataset_type = 'RoadAnomalyDataset'
-test_data_root = 'data/RoadAnomaly'
-easy_start = True
-
-
 data_preprocessor = dict(
     type='SegDataPreProcessor',
     mean=[123.675, 116.28, 103.53],
@@ -18,11 +10,9 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size,
     test_cfg=dict(size_divisor=32))
-
-
-num_classes = 20
+num_classes = 19
 model = dict(
-    type='EncoderDecoderLDM',
+    type='EncoderDecoder',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -34,20 +24,14 @@ model = dict(
         norm_cfg=dict(type='SyncBN', requires_grad=False),
         style='pytorch',
         init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
-    ldm=dict(
-        type='DDIMSampler', 
-        model='configs/ldm_ad/cldm_v15.yaml', 
-        ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
-        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
-    ), 
     decode_head=dict(
-        type='FixedMatchingMask2FormerHead',
+        type='Mask2FormerHead',
         in_channels=[256, 512, 1024, 2048],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
         num_classes=num_classes,
-        num_queries=num_classes,
+        num_queries=100,
         num_transformer_feat_level=3,
         align_corners=False,
         pixel_decoder=dict(
@@ -132,7 +116,7 @@ model = dict(
             oversample_ratio=3.0,
             importance_sample_ratio=0.75,
             assigner=dict(
-                type='FixedAssigner',
+                type='mmdet.HungarianAssigner',
                 match_costs=[
                     dict(type='mmdet.ClassificationCost', weight=2.0),
                     dict(
@@ -149,12 +133,10 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 
-buffer_path = 'ldm/buffer_with_anomalies_with_textinit'
 # dataset config
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    # dict(type='PasteAnomalies', buffer_path=buffer_path), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -165,22 +147,7 @@ train_pipeline = [
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
 ]
-test_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations'), 
-    dict(type='PackSegInputs')
-]
-
-train_dataloader = dict(dataset=dict(type=train_dataset_type, 
-                                     data_root=train_data_root, 
-                                     num_anomalies=100, 
-                                     pipeline=train_pipeline))
-val_dataloader = dict(dataset=dict(type=train_dataset_type, 
-                                     data_root=train_data_root, 
-                                     pipeline=test_pipeline))
-test_dataloader = val_dataloader
-val_evaluator = dict(type='AnomalyMetric')
-test_evaluator = val_evaluator
+train_dataloader = dict(dataset=dict(pipeline=train_pipeline))
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)
@@ -210,13 +177,9 @@ param_scheduler = [
 ]
 
 # training schedule for 90k
-train_cfg = dict(type='MyIterBasedTrainLoop', max_iters=1, val_interval=5000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=90000, val_interval=5000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
-
-vis_backends = [dict(type='LocalVisBackend'), dict(type='TensorboardVisBackend')]
-visualizer = dict(
-    type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=50, log_metric_by_epoch=False),
@@ -225,10 +188,7 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=1))
-
-
-custom_hooks = [dict(type='TextInitQueriesHook'), dict(type='GeneratePseudoAnomalyHook')]
+    visualization=dict(type='SegVisualizationHook'))
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically

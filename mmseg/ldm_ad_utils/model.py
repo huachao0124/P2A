@@ -47,15 +47,11 @@ class EncoderDecoderLDM(EncoderDecoder):
                  pretrained,
                  init_cfg)
         self.ldm = MODELS.build(ldm)
-        
-        
-        def extract_feat(self, inputs: Tensor) -> List[Tensor]:
-            """Extract features from images."""
-            x = self.backbone(inputs)
-            print("K" * 50)
-            print(self.text_embeddings.shape)
-            return x
-        
+        self.freeze_ldm()
+    
+    def freeze_ldm(self):
+        for m in self.ldm.parameters():
+            m.requires_grad = False
     
 
 @MODELS.register_module()
@@ -103,6 +99,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
                  align_corners=False,
                  ignore_index=255,
                  cond_channels=768, 
+                 with_text_init=False, 
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -114,7 +111,9 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         feat_channels = kwargs['feat_channels']
         self.cls_embed = nn.Linear(feat_channels, self.num_classes + 1)
         
-        self.text_embed_channel = nn.Linear(cond_channels, feat_channels)
+        self.with_text_init = with_text_init
+        if with_text_init:
+            self.text_embed_channel = nn.Linear(cond_channels, feat_channels)
         
 
     def _seg_data_to_instance_data(self, batch_data_samples: SampleList):
@@ -424,8 +423,11 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
             decoder_inputs.append(decoder_input)
             decoder_positional_encodings.append(decoder_positional_encoding)
         # shape (num_queries, c) -> (batch_size, num_queries, c)
-        query_feat = (self.query_feat.weight + \
-            self.text_embed_channel(self.text_embed)).unsqueeze(0).repeat((batch_size, 1, 1))
+        if self.with_text_init:
+            query_feat = (self.query_feat.weight + \
+                self.text_embed_channel(self.text_embed)).unsqueeze(0).repeat((batch_size, 1, 1))
+        else:
+            query_feat = self.query_feat.weight.unsqueeze(0).repeat((batch_size, 1, 1))
         query_embed = self.query_embed.weight.unsqueeze(0).repeat((batch_size, 1, 1))
 
         cls_pred_list = []

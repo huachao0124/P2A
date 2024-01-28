@@ -1,9 +1,10 @@
 from .ddim import DDIMSampler
 from .model import EncoderDecoderLDM, EncoderDecoderWithLDMBackbone, FixedMatchingMask2FormerHead
 from .hook import GeneratePseudoAnomalyHook, TextInitQueriesHook
-from .dataset import CityscapesWithAnomaliesDataset, PasteAnomalies
+from .dataset import CityscapesWithAnomaliesDataset, PasteAnomalies, RoadAnomalyDataset
 from .utils import FixedAssigner
 from .loop import MyIterBasedTrainLoop
+from .metric import AnomalyMetric
 
 
 __all__ = ['DDIMSampler', 
@@ -15,4 +16,6 @@ __all__ = ['DDIMSampler',
            'CityscapesWithAnomaliesDataset', 
            'PasteAnomalies', 
            'FixedAssigner', 
-           'MyIterBasedTrainLoop']
+           'MyIterBasedTrainLoop', 
+           'RoadAnomalyDataset', 
+           'AnomalyMetric']

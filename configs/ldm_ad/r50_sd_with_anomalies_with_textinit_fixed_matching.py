@@ -45,6 +45,7 @@ model = dict(
         num_queries=num_classes,
         num_transformer_feat_level=3,
         align_corners=False,
+        with_text_init=True, 
         pixel_decoder=dict(
             type='mmdet.MSDeformAttnPixelDecoder',
             in_channels=[256, 832, 1664, 3328],

@@ -5,6 +5,7 @@ from mmseg.datasets.cityscapes import CityscapesDataset
 import mmcv
 from mmcv.transforms.base import BaseTransform
 import mmengine.fileio as fileio
+from mmengine.dataset.base_dataset import Compose
 
 import random
 import os
@@ -15,6 +16,8 @@ import cv2
 import numpy as np
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 from torchvision import transforms
+from torch.utils.data import Dataset
+import json
 
 
 @DATASETS.register_module()
@@ -129,3 +132,28 @@ class PasteAnomalies(BaseTransform):
         
         return results
     
+
+@DATASETS.register_module()
+class RoadAnomalyDataset(Dataset):
+    def __init__(self, 
+                 data_root: str = None, 
+                 pipeline: List[Union[dict, Callable]] = [], 
+                 **kwargs):
+        with open(os.path.join(data_root, 'frame_list.json'), 'r') as f:
+            self.img_list = json.load(f)
+        self.data_root = data_root
+        self.pipeline = Compose(pipeline)
+        
+    
+    
+    def __len__(self):
+        return len(self.img_list)
+    
+    def __getitem__(self, idx):
+        data_info = {'img_path': os.path.join(self.data_root, 'frames', self.img_list[idx])}
+        data_info['reduce_zero_label'] = True
+        data_info['seg_map_path'] = os.path.join(self.data_root, 'frames', \
+                        self.img_list[idx].replace('jpg', 'labels'), 'labels_semantic.png')
+        data_info['seg_fields'] = []
+        
+        return self.pipeline(data_info)

@@ -21,6 +21,10 @@ from mmseg.registry import RUNNERS
 
 @RUNNERS.register_module()
 class Runner(MMENGINE_RUNNER):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.buffer_path = self.cfg.buffer_path
+        self.easy_start = self.cfg.easy_start
 
     @master_only
     def save_checkpoint(
