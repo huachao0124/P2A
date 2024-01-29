@@ -1,5 +1,9 @@
 _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
+easy_start = True
+
+dataset_type = 'CityscapesWithAnomaliesDataset'
+data_root = 'data/cityscapes/'
 crop_size = (512, 1024)
 data_preprocessor = dict(
     type='SegDataPreProcessor',
@@ -10,9 +14,9 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size,
     test_cfg=dict(size_divisor=32))
-num_classes = 19
+num_classes = 20
 model = dict(
-    type='EncoderDecoder',
+    type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -24,6 +28,12 @@ model = dict(
         norm_cfg=dict(type='SyncBN', requires_grad=False),
         style='pytorch',
         init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
+    ldm=dict(
+        type='DDIMSampler', 
+        model='configs/ldm_ad/cldm_v15.yaml', 
+        ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
+        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
+    ), 
     decode_head=dict(
         type='Mask2FormerHead',
         in_channels=[256, 512, 1024, 2048],
@@ -133,10 +143,12 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 
+buffer_path = 'ldm/buffer'
 # dataset config
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
+    dict(type='PasteAnomalies', buffer_path=buffer_path), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -147,7 +159,7 @@ train_pipeline = [
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
 ]
-train_dataloader = dict(dataset=dict(pipeline=train_pipeline))
+train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=1000, pipeline=train_pipeline))
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)
@@ -188,7 +200,10 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook'))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
+
+easy_start = True
+buffer_path = None
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically

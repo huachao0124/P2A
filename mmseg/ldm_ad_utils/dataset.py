@@ -40,9 +40,11 @@ class CityscapesWithAnomaliesDataset(CityscapesDataset):
                  [0, 255, 0]])
     def __init__(self,
                  num_anomalies = 100, 
+                 num_classes = 20, 
                  img_size = (1024, 2048), 
                  **kwargs) -> None:
         self.num_anomalies = num_anomalies
+        self.num_classes = num_classes
         super().__init__(**kwargs)
     
     def get_data_info(self, idx: int) -> dict:
@@ -71,12 +73,18 @@ class CityscapesWithAnomaliesDataset(CityscapesDataset):
             data_info['sample_idx'] = len(self) + idx
         # data_info['anomalies'] = self.anomalies[selected_anomalies_indices]
         data_info['num_anomalies'] = self.num_anomalies
+        data_info['num_classes'] = self.num_classes
         return data_info
     
 
 @TRANSFORMS.register_module()
 class PasteAnomalies(BaseTransform):
-    def __init__(self, rotate_prob=0.5, flip_prob=0.5, degree=(-20, 20), buffer_path='ldm/buffer'):
+    def __init__(self, 
+                 buffer_path='ldm/buffer', 
+                 part_instance=False, 
+                 rotate_prob=0.5, 
+                 flip_prob=0.5, 
+                 degree=(-20, 20)):
         self.rotate_prob = rotate_prob
         self.flip_prob = flip_prob
         assert 0 <= rotate_prob <= 1 and 0 <= flip_prob <= 1
@@ -88,10 +96,11 @@ class PasteAnomalies(BaseTransform):
         assert len(self.degree) == 2, f'degree {self.degree} should be a ' \
                                       f'tuple of (min, max)'
         self.buffer_path = buffer_path
+        self.part_instance = part_instance
     
     def transform(self, results: dict) -> dict:        
         # select random anomalies
-        curr_num_anomalies = random.choices(range(4), weights=[2, 10, 5, 2], k=1)[0]
+        curr_num_anomalies = random.choices(range(10), weights=[2, 10, 5, 2, 1, 1, 1, 1, 1, 1], k=1)[0]
         selected_anomalies_indices = random.choices(range(results['num_anomalies']), k=curr_num_anomalies)
         results['anomalies'] = []
         for idx in selected_anomalies_indices:
@@ -114,7 +123,7 @@ class PasteAnomalies(BaseTransform):
             image = mmcv.imrotate(image, angle=angle)
             mask = mmcv.imrotate(mask, angle=angle)
             
-            long_side = random.randint(32, 1024 // 2 ** len(results['anomalies']))
+            long_side = random.randint(64, 2048 // min(2 ** len(results['anomalies']), 16))
             h, w = image.shape[:2]
             new_h, new_w = int(h / max(h, w) * long_side), int(w / max(h, w) * long_side)
             
@@ -122,14 +131,20 @@ class PasteAnomalies(BaseTransform):
             resize_mask = cv2.resize(mask, (new_w, new_h))
             
             img_h, img_w = results['img'].shape[:2]
+                        
             x = random.randint(0, img_w - new_w)
-            y = random.randint(448, img_h - new_h)
+            try:
+                y = random.randint(448, img_h - new_h)
+            except:
+                y = random.randint(0, img_h - new_h)
             results['img'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = resize_image[resize_mask > 0]
-            results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = 19
-            
-            from PIL import Image
-            Image.fromarray(results['img']).save(f'samples/{idx}_0.jpg')
+            if not self.part_instance:
+                results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = 19
+            else:
+                results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = 19 + idx
         
+        # from PIL import Image
+        # Image.fromarray(results['img']).save(f'samples/{idx}_0.jpg')
         return results
     
 
@@ -143,17 +158,29 @@ class RoadAnomalyDataset(Dataset):
             self.img_list = json.load(f)
         self.data_root = data_root
         self.pipeline = Compose(pipeline)
-        
-    
     
     def __len__(self):
         return len(self.img_list)
     
     def __getitem__(self, idx):
         data_info = {'img_path': os.path.join(self.data_root, 'frames', self.img_list[idx])}
-        data_info['reduce_zero_label'] = True
+        data_info['reduce_zero_label'] = False
         data_info['seg_map_path'] = os.path.join(self.data_root, 'frames', \
                         self.img_list[idx].replace('jpg', 'labels'), 'labels_semantic.png')
         data_info['seg_fields'] = []
         
-        return self.pipeline(data_info)
+        data_info = self.pipeline(data_info)
+        return data_info
+
+@DATASETS.register_module()
+class FSLostAndFoundDataset(BaseSegDataset):
+    METAINFO = dict(
+    classes=('normal', 'anomaly'),
+    palette=[[0, 0, 0], [255, 0, 0]])
+    
+    def __init__(self,
+                 img_suffix='.png',
+                 seg_map_suffix='.png',
+                 **kwargs) -> None:
+        super().__init__(
+            img_suffix=img_suffix, seg_map_suffix=seg_map_suffix, **kwargs)

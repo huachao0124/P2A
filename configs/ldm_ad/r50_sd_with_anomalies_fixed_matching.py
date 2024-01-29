@@ -127,20 +127,7 @@ model = dict(
             num_points=12544,
             oversample_ratio=3.0,
             importance_sample_ratio=0.75,
-            assigner=dict(
-                type='FixedAssigner',
-                match_costs=[
-                    dict(type='mmdet.ClassificationCost', weight=2.0),
-                    dict(
-                        type='mmdet.CrossEntropyLossCost',
-                        weight=5.0,
-                        use_sigmoid=True),
-                    dict(
-                        type='mmdet.DiceCost',
-                        weight=5.0,
-                        pred_act=True,
-                        eps=1.0)
-                ]),
+            assigner=dict(type='FixedAssigner'),
             sampler=dict(type='mmdet.MaskPseudoSampler'))),
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
@@ -206,7 +193,7 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
 
 custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 

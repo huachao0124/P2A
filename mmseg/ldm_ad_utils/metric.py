@@ -13,6 +13,7 @@ from prettytable import PrettyTable
 
 from mmseg.registry import METRICS
 from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curve, average_precision_score
+from ood_metrics import fpr_at_95_tpr, calc_metrics, plot_roc, plot_pr,plot_barcode
 
 @METRICS.register_module()
 class AnomalyMetric(BaseMetric):
@@ -76,29 +77,15 @@ class AnomalyMetric(BaseMetric):
             data_batch (dict): A batch of data from the dataloader.
             data_samples (Sequence[dict]): A batch of outputs from the model.
         """
+        seg_logits = []
+        gt_anomaly_maps = []
         for data_sample in data_samples:
-            pred_label = data_sample['pred_sem_seg']['data'].squeeze()
-            # format_only always for test dataset without ground truth
-            if not self.format_only:
-                label = data_sample['gt_sem_seg']['data'].squeeze().to(
-                    pred_label)
-            # format_result
-            if self.output_dir is not None:
-                # for i, c, p in enumerate(zip(METAINFO['classes'], METAINFO['palette'])):
-                #     pred_label[pred_label != 19] = -1
-                #     pred_label[pred_label == 19] = 0
-                basename = osp.splitext(osp.basename(
-                    data_sample['img_path']))[0]
-                png_filename = osp.abspath(
-                    osp.join(self.output_dir, f'{basename}.png'))
-                output_mask = pred_label.cpu().numpy()
-                # The index range of official ADE20k dataset is from 0 to 150.
-                # But the index range of output is from 0 to 149.
-                # That is because we set reduce_zero_label=True.
-                if data_sample.get('reduce_zero_label', False):
-                    output_mask = output_mask + 1
-                output = Image.fromarray(output_mask.astype(np.uint8))
-                output.save(png_filename)
+            seg_logits.append(data_sample['seg_logits']['data'])
+            gt_anomaly_maps.append(data_sample['gt_sem_seg']['data'])
+        
+        self.results.append(seg_logits)
+        self.results.append(gt_anomaly_maps)
+            
     
     def compute_metrics(self, results: list) -> Dict[str, float]:
         """Compute the metrics from processed results.
@@ -112,12 +99,37 @@ class AnomalyMetric(BaseMetric):
                 mainly includes aAcc, mIoU, mAcc, mDice, mFscore, mPrecision,
                 mRecall.
         """
-        logger: MMLogger = MMLogger.get_current_instance()
-        if self.format_only:
-            logger.info(f'results are saved to {osp.dirname(self.output_dir)}')
-            return OrderedDict()
+        seg_logits = self.results[0]
+        gt_anomaly_maps = self.results[1]
+        
+        seg_logits = torch.stack(seg_logits)
+        # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten().cpu().numpy()
+        # pred_anomaly_maps = 1 - torch.max(seg_logits[:, :19, :, :], dim=1)[0].flatten().cpu().numpy()
+        # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten().cpu().numpy() * (1 - torch.max(seg_logits[:, :19, :, :], dim=1)[0].flatten().cpu().numpy())
+        pred_anomaly_maps = seg_logits[:, -1, :, :].flatten().cpu().numpy() / torch.max(seg_logits[:, :19, :, :], dim=1)[0].flatten().cpu().numpy()
+        gt_anomaly_maps = torch.stack(gt_anomaly_maps).flatten().cpu().numpy()
+        gt_anomaly_maps[gt_anomaly_maps > 0] = 1
+        
+        ood_mask = (gt_anomaly_maps == 1)
+        ind_mask = (gt_anomaly_maps == 0)
+
+        ood_out = pred_anomaly_maps[ood_mask]
+        ind_out = pred_anomaly_maps[ind_mask]
+
+        ood_label = np.ones(len(ood_out))
+        ind_label = np.zeros(len(ind_out))
+        
+        val_out = np.concatenate((ind_out, ood_out))
+        val_label = np.concatenate((ind_label, ood_label))
+
+        fpr, tpr, _ = roc_curve(val_label, val_out)    
+        roc_auc = auc(fpr, tpr)
+        prc_auc = average_precision_score(val_label, val_out)
+        fpr = fpr_at_95_tpr(val_out, val_label)
  
-        metrics = dict()
+        metrics = {'fpr_at_95_tpr': fpr, 'AUPRC': prc_auc, 'AUROC': roc_auc}
+        
+        print(metrics)
 
         return metrics
 

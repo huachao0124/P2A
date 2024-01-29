@@ -606,7 +606,7 @@ class SpatialTransformer(nn.Module):
             context = [context]
         b, c, h, w = x.shape
         # window_size = h // 2
-        window_size = h
+        window_size = -1
         cross_attn_maps = []
         
         
@@ -615,7 +615,7 @@ class SpatialTransformer(nn.Module):
         if not self.use_linear:
             x = self.proj_in(x)
         
-        x = window_partition(x, window_size=window_size)
+        # x = window_partition(x, window_size=window_size)
         
         x = rearrange(x, 'b c h w -> b (h w) c').contiguous()
         if self.use_linear:
@@ -627,8 +627,8 @@ class SpatialTransformer(nn.Module):
             cross_attn_maps.append(cross_attn_map)
         if self.use_linear:
             x = self.proj_out(x)
-        x = rearrange(x, 'b (h w) c -> b c h w', h=window_size, w=window_size).contiguous()
-        x = window_reverse(x, window_size=window_size, H=h, W=w)
+        x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w).contiguous()
+        # x = window_reverse(x, window_size=window_size, H=h, W=w)
         
         if not self.use_linear:
             x = self.proj_out(x)
