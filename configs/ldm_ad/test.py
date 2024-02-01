@@ -32,7 +32,7 @@ model = dict(
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
-    with_ldm=True, 
+    with_ldm=False, 
     decode_head=dict(
         type='FixedMatchingMask2FormerHead',
         in_channels=[256, 512, 1024, 2048],
@@ -243,7 +243,7 @@ default_hooks = dict(
     visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=1))
 
 
-custom_hooks = [dict(type='TextInitQueriesHook'), dict(type='GeneratePseudoAnomalyHook')]
+# custom_hooks = [dict(type='TextInitQueriesHook'), dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically

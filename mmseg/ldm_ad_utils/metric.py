@@ -66,8 +66,6 @@ class AnomalyMetric(BaseMetric):
         if self.output_dir and is_main_process():
             mkdir_or_exist(self.output_dir)
         self.format_only = format_only
-        self.seg_logits = []
-        self.gt_anomaly_maps = []
 
     def process(self, data_batch: dict, data_samples: Sequence[dict]) -> None:
         """Process one batch of data and data_samples.
@@ -82,11 +80,8 @@ class AnomalyMetric(BaseMetric):
         seg_logits = []
         gt_anomaly_maps = []
         for data_sample in data_samples:
-            self.results.append((data_sample['seg_logits']['data'], data_sample['gt_sem_seg']['data']))
-            self.seg_logits.append(data_sample['seg_logits']['data'])
-            self.gt_anomaly_maps.append(data_sample['gt_sem_seg']['data'])
+            self.results.append((data_sample['seg_logits']['data'].cpu().numpy(), data_sample['gt_sem_seg']['data'].cpu().numpy()))
         
-            
     
     def compute_metrics(self, results: list) -> Dict[str, float]:
         """Compute the metrics from processed results.
@@ -100,34 +95,26 @@ class AnomalyMetric(BaseMetric):
                 mainly includes aAcc, mIoU, mAcc, mDice, mFscore, mPrecision,
                 mRecall.
         """
+        logger: MMLogger = MMLogger.get_current_instance()
+        if self.format_only:
+            logger.info(f'results are saved to {osp.dirname(self.output_dir)}')
+            return OrderedDict()
         
-        print(len(results))
-        print(len(results[0]))
-        print(len(results[1]))
-        print(results[0][0].shape)
+        results = tuple(zip(*results))
+        assert len(results) == 2
         
-        seg_logits = self.seg_logits
-        gt_anomaly_maps = self.gt_anomaly_maps
-        
-        
-        print(seg_logits[0].shape, gt_anomaly_maps[0].shape)
-        
-        seg_logits = torch.stack(seg_logits).cpu().numpy()
-        gt_anomaly_maps = torch.stack(gt_anomaly_maps).cpu().numpy()
+        seg_logits = np.stack(results[0])
+        gt_anomaly_maps = np.stack(results[1])
                 
-        has_anomaly = np.array([(1 in np.unique(gt_anomaly_map)) for gt_anomaly_map in gt_anomaly_maps])
+        has_anomaly = np.array([(1 in np.unique(gt_anomaly_map)) for gt_anomaly_map in gt_anomaly_maps]).astype(np.bool_)
         
         seg_logits = seg_logits[has_anomaly]
-        gt_anomaly_maps = gt_anomaly_maps[has_anomaly].flatten()
-        
-        print(seg_logits.shape, gt_anomaly_maps.shape)
-        
+        gt_anomaly_maps = gt_anomaly_maps[has_anomaly].flatten()        
         
         # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten()
         pred_anomaly_maps = (1 - np.max(seg_logits[:, :19, :, :], axis=1)).flatten()
         # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten() * (1 - np.max(seg_logits[:, :19, :, :], axis=1)).flatten()
         # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten() / np.max(seg_logits[:, :19, :, :], axis=1).flatten()
-        # gt_anomaly_maps[gt_anomaly_maps > 0] = 1
         
         assert ((gt_anomaly_maps == 0) | (gt_anomaly_maps == 1)).all()
         
@@ -147,10 +134,20 @@ class AnomalyMetric(BaseMetric):
         roc_auc = auc(fpr, tpr)
         prc_auc = average_precision_score(val_label, val_out)
         fpr = fpr_at_95_tpr(val_out, val_label)
- 
-        metrics = {'fpr_at_95_tpr': fpr, 'AUPRC': prc_auc, 'AUROC': roc_auc}
         
-        print(metrics)
+        # summary
+        metrics = dict()
+        for key, val in zip(('AUPRC', 'FPR@95TPR', 'AUROC'), (prc_auc, fpr, roc_auc)):
+            metrics[key] = np.round(val * 100, 2)
+        metrics = OrderedDict(metrics)
+        metrics.update({'Class': 'Anomaly'})
+        metrics.move_to_end('Class', last=False)
+        class_table_data = PrettyTable()
+        for key, val in metrics.items():
+            class_table_data.add_column(key, val)
+
+        print_log('anomaly segmentation results:', logger)
+        print_log('\n' + class_table_data.get_string(), logger=logger)
 
         return metrics
-
+        
