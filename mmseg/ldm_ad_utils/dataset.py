@@ -101,7 +101,7 @@ class PasteAnomalies(BaseTransform):
     
     def transform(self, results: dict) -> dict:        
         # select random anomalies
-        curr_num_anomalies = random.choices(range(10), weights=[2, 10, 5, 2, 1, 1, 1, 1, 1, 1], k=1)[0]
+        curr_num_anomalies = random.choices(range(6), weights=[2, 10, 5, 2, 1, 1], k=1)[0]
         selected_anomalies_indices = random.choices(range(results['num_anomalies']), k=curr_num_anomalies)
         results['anomalies'] = []
         for idx in selected_anomalies_indices:
