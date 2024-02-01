@@ -32,13 +32,13 @@ model = dict(
     ), 
     with_ldm=True, 
     decode_head=dict(
-        type='Mask2FormerHead',
+        type='FixedMatchingMask2FormerHead',
         in_channels=[256, 512, 1024, 2048],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
         num_classes=num_classes,
-        num_queries=100,
+        num_queries=num_classes,
         num_transformer_feat_level=3,
         align_corners=False,
         pixel_decoder=dict(
@@ -118,13 +118,13 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_constrastive=dict(type='ContrastiveLoss'),
+        loss_contrastive=dict(type='ContrastiveLoss'),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
             importance_sample_ratio=0.75,
             assigner=dict(
-                type='mmdet.HungarianAssigner',
+                type='FixedAssigner',
                 match_costs=[
                     dict(type='mmdet.ClassificationCost', weight=2.0),
                     dict(

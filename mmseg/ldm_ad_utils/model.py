@@ -206,9 +206,9 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         if with_text_init:
             self.text_embed_channel = nn.Linear(cond_channels, feat_channels)
         
-        self.loss_constrastive = None
+        self.loss_contrastive = None
         if loss_contrastive is not None:
-            self.loss_constrastive = MODELS.build(loss_contrastive)
+            self.loss_contrastive = MODELS.build(loss_contrastive)
         
 
     def _seg_data_to_instance_data(self, batch_data_samples: SampleList):
@@ -371,7 +371,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
             batch_gt_instances for _ in range(num_dec_layers)
         ]
         img_metas_list = [batch_img_metas for _ in range(num_dec_layers)]
-        losses_cls, losses_mask, losses_dice, losses_constrastive = multi_apply(
+        losses_cls, losses_mask, losses_dice, losses_contrastive = multi_apply(
             self._loss_by_feat_single, all_cls_scores, all_mask_preds,
             batch_gt_instances_list, img_metas_list)
 
@@ -382,17 +382,17 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         loss_dict['loss_dice'] = losses_dice[-1]
         
         
-        if losses_constrastive[0] is not None:
-            loss_dict['loss_constrastive'] = losses_constrastive[-1]
+        if losses_contrastive[0] is not None:
+            loss_dict['loss_contrastive'] = losses_contrastive[-1]
         # loss from other decoder layers
         num_dec_layer = 0
-        for loss_cls_i, loss_mask_i, loss_dice_i, loss_constrastive in zip(
-                losses_cls[:-1], losses_mask[:-1], losses_dice[:-1], losses_constrastive[:-1]):
+        for loss_cls_i, loss_mask_i, loss_dice_i, loss_contrastive in zip(
+                losses_cls[:-1], losses_mask[:-1], losses_dice[:-1], losses_contrastive[:-1]):
             loss_dict[f'd{num_dec_layer}.loss_cls'] = loss_cls_i
             loss_dict[f'd{num_dec_layer}.loss_mask'] = loss_mask_i
             loss_dict[f'd{num_dec_layer}.loss_dice'] = loss_dice_i
-            if loss_constrastive is not None:
-                loss_dict[f'd{num_dec_layer}.loss_constrastive'] = loss_constrastive
+            if loss_contrastive is not None:
+                loss_dict[f'd{num_dec_layer}.loss_contrastive'] = loss_contrastive
             num_dec_layer += 1
         return loss_dict
     
@@ -421,9 +421,9 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         cls_scores_list = [cls_scores[i] for i in range(num_imgs)]
         mask_preds_list = [mask_preds[i] for i in range(num_imgs)]
         
-        loss_constrastive = None
-        if self.loss_constrastive is not None:
-            loss_constrastive = self.loss_constrastive(torch.stack(cls_scores_list), \
+        loss_contrastive = None
+        if self.loss_contrastive is not None:
+            loss_contrastive = self.loss_contrastive(torch.stack(cls_scores_list), \
                                     torch.stack(mask_preds_list), batch_gt_instances, batch_img_metas)
 
         (labels_list, label_weights_list, mask_targets_list, mask_weights_list,
@@ -493,7 +493,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
             mask_point_targets,
             avg_factor=num_total_masks * self.num_points)
 
-        return loss_cls, loss_mask, loss_dice, loss_constrastive
+        return loss_cls, loss_mask, loss_dice, loss_contrastive
 
     def _forward_head(self, decoder_out: Tensor, mask_feature: Tensor,
                       attn_mask_target_size: Tuple[int, int]) -> Tuple[Tensor]:

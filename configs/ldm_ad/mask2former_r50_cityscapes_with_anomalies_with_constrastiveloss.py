@@ -32,7 +32,7 @@ model = dict(
     ), 
     with_ldm=True, 
     decode_head=dict(
-        type='Mask2FormerHead',
+        type='FixedMatchingMask2FormerHead',
         in_channels=[256, 512, 1024, 2048],
         strides=[4, 8, 16, 32],
         feat_channels=256,
@@ -118,7 +118,7 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_constrastive=dict(type='ContrastiveLoss'),
+        loss_contrastive=dict(type='ContrastiveLoss'),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
