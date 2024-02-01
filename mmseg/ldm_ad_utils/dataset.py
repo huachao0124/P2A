@@ -18,6 +18,7 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 from torchvision import transforms
 from torch.utils.data import Dataset
 import json
+from PIL import Image
 
 
 @DATASETS.register_module()
@@ -111,17 +112,19 @@ class PasteAnomalies(BaseTransform):
                 print("before generation")
         
         for idx, anomaly in enumerate(results['anomalies']):
-            k = np.random.randint(0, 4)
-            image = np.rot90(anomaly['image'], k)
-            mask = np.rot90(anomaly['mask'], k)
+            # k = np.random.randint(0, 4)
+            # image = np.rot90(anomaly['image'], k)
+            # mask = np.rot90(anomaly['mask'], k)
+            image = anomaly['image']
+            mask = anomaly['mask']
+            if random.random() < self.flip_prob:
+                axis = np.random.randint(0, 2)
+                image = np.flip(image, axis=1).copy()
+                mask = np.flip(mask, axis=1).copy()
             
-            axis = np.random.randint(0, 2)
-            image = np.flip(image, axis=axis).copy()
-            mask = np.flip(mask, axis=axis).copy()
-            
-            angle = np.random.uniform(min(*self.degree), max(*self.degree))
-            image = mmcv.imrotate(image, angle=angle)
-            mask = mmcv.imrotate(mask, angle=angle)
+            # angle = np.random.uniform(min(*self.degree), max(*self.degree))
+            # image = mmcv.imrotate(image, angle=angle)
+            # mask = mmcv.imrotate(mask, angle=angle)
             
             long_side = random.randint(64, 2048 // min(2 ** len(results['anomalies']), 16))
             h, w = image.shape[:2]
@@ -143,8 +146,10 @@ class PasteAnomalies(BaseTransform):
             else:
                 results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = 19 + idx
         
-        # from PIL import Image
-        # Image.fromarray(results['img']).save(f'samples/{idx}_0.jpg')
+        r = random.randint(0, 100000)
+        if r < 100:
+            img = cv2.cvtColor(results['img'], cv2.COLOR_BGR2RGB)
+            Image.fromarray(img).save(f'samples/{r}.jpg')
         return results
     
 
@@ -172,6 +177,7 @@ class RoadAnomalyDataset(Dataset):
         data_info = self.pipeline(data_info)
         return data_info
 
+
 @DATASETS.register_module()
 class FSLostAndFoundDataset(BaseSegDataset):
     METAINFO = dict(
@@ -184,3 +190,18 @@ class FSLostAndFoundDataset(BaseSegDataset):
                  **kwargs) -> None:
         super().__init__(
             img_suffix=img_suffix, seg_map_suffix=seg_map_suffix, **kwargs)
+
+
+@TRANSFORMS.register_module()
+class UnifyGT(BaseTransform):
+    def __init__(self, label_map={0: 0, 1: 1, 255: 0}):
+        super().__init__()
+        self.label_map = label_map
+    
+    def transform(self, results: dict) -> dict:        
+        new_gt_seg_map = np.zeros_like(results['gt_seg_map'])
+        for k, v in self.label_map.items():
+            new_gt_seg_map[results['gt_seg_map'] == k] = v
+        results['gt_seg_map'] = new_gt_seg_map
+        return results
+        

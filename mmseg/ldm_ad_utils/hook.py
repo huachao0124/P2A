@@ -27,9 +27,9 @@ from mmseg.structures import SegDataSample
 
 
 classes = ('road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
-                    'traffic light', 'traffic sign', 'vegetation', 'terrain',
-                    'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
-                    'motorcycle', 'bicycle', 'anomaly')
+            'traffic light', 'traffic sign', 'vegetation', 'terrain',
+            'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
+            'motorcycle', 'bicycle', 'others')
 
 
 @HOOKS.register_module()
@@ -49,6 +49,7 @@ class TextInitQueriesHook(Hook):
         text_embeddings = text_embeddings.unsqueeze(1).repeat(1, model.decode_head.num_queries_per_class, 1).flatten(0, 1)
         text_embeddings = torch.cat((text_embeddings, text_embeddings[-1:].repeat(model.decode_head.num_queries - \
                         model.decode_head.num_classes * model.decode_head.num_queries_per_class, 1)))
+        
         model.decode_head.text_embed = text_embeddings
 
 
@@ -57,9 +58,12 @@ class GeneratePseudoAnomalyHook(Hook):
     priority = 'VERY_LOW'
     
     def before_train(self, runner):
-        with open('ldm/object365.txt', 'r') as f:
-            content = f.readlines()
-        self.objects = [eval(c)['name'] for c in content]
+        # with open('ldm/object365.txt', 'r') as f:
+        #     content = f.readlines()
+        # self.objects = [eval(c)['name'] for c in content]
+        
+        with open('ldm/objects.txt', 'r') as f:
+            self.objects = f.read().splitlines()
         
         if runner.easy_start:
             return
@@ -188,6 +192,7 @@ class GeneratePseudoAnomalyHook(Hook):
                     x, y, w, h = cv2.boundingRect(contour)
                     new_w, new_h = int(w / max(w, h) * W), int(h / max(w, h) * H)
                     extracted_img = cv2.resize(img[y:y+h, x:x+w], (new_w, new_h))
+                    extracted_img = cv2.cvtColor(extracted_img, cv2.COLOR_RGB2BGR)
                     extracted_mask = cv2.resize(mask[y:y+h, x:x+w], (new_w, new_h))
                     # self.plot_mask_on_img(extracted_img, extracted_mask, replace_indices[i])
                     with open(f'{runner.buffer_path}/{replace_indices[i]}.pkl', 'wb') as f:
@@ -280,6 +285,7 @@ class SegVisualizationWithResizeHook(Hook):
                         img, 
                         (output.gt_sem_seg.shape[1], output.gt_sem_seg.shape[0]),
                         interpolation='nearest')
+                
                                 
                 self._visualizer.add_datasample(
                     window_name,

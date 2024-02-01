@@ -4,10 +4,12 @@ from .hook import GeneratePseudoAnomalyHook, TextInitQueriesHook, SegVisualizati
 from .dataset import (CityscapesWithAnomaliesDataset, 
                       PasteAnomalies, 
                       RoadAnomalyDataset,
-                      FSLostAndFoundDataset)
+                      FSLostAndFoundDataset, 
+                      UnifyGT)
 from .utils import FixedAssigner
 from .loop import MyIterBasedTrainLoop
 from .metric import AnomalyMetric
+from .loss import ContrastiveLoss
 
 
 __all__ = ['DDIMSampler', 
@@ -23,4 +25,6 @@ __all__ = ['DDIMSampler',
            'MyIterBasedTrainLoop', 
            'RoadAnomalyDataset', 
            'AnomalyMetric', 
-           'FSLostAndFoundDataset']
+           'FSLostAndFoundDataset', 
+           'UnifyGT', 
+           'ContrastiveLoss']

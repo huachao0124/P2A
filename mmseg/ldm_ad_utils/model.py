@@ -38,6 +38,7 @@ class EncoderDecoderLDM(EncoderDecoder):
                  backbone: ConfigType,
                  ldm: ConfigType, 
                  decode_head: ConfigType,
+                 with_ldm: bool = False, 
                  neck: OptConfigType = None,
                  auxiliary_head: OptConfigType = None,
                  train_cfg: OptConfigType = None,
@@ -55,8 +56,10 @@ class EncoderDecoderLDM(EncoderDecoder):
                  data_preprocessor,
                  pretrained,
                  init_cfg)
-        self.ldm = MODELS.build(ldm)
-        self.freeze_ldm()
+        
+        if with_ldm:
+            self.ldm = MODELS.build(ldm)
+            self.freeze_ldm()
     
     def freeze_ldm(self):
         for m in self.ldm.parameters():
@@ -186,6 +189,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
                  ignore_index=255,
                  cond_channels=768, 
                  with_text_init=False, 
+                 loss_contrastive: ConfigType = None, 
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -201,6 +205,10 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         self.with_text_init = with_text_init
         if with_text_init:
             self.text_embed_channel = nn.Linear(cond_channels, feat_channels)
+        
+        self.loss_constrastive = None
+        if loss_contrastive is not None:
+            self.loss_constrastive = MODELS.build(loss_contrastive)
         
 
     def _seg_data_to_instance_data(self, batch_data_samples: SampleList):
@@ -308,12 +316,12 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
             scores=cls_score, masks=mask_points_pred)
         
         
-        
         # assign and sample
         assign_result = self.assigner.assign(
             pred_instances=sampled_pred_instances,
             gt_instances=sampled_gt_instances,
-            img_meta=img_meta)
+            img_meta=img_meta, 
+            num_queries_per_class=self.num_queries_per_class)
         
         pred_instances = InstanceData(scores=cls_score, masks=mask_pred)
         sampling_result = self.sampler.sample(
@@ -337,7 +345,58 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
 
         return (labels, label_weights, mask_targets, mask_weights, pos_inds,
                 neg_inds, sampling_result)
+    
+    
+    def loss_by_feat(self, all_cls_scores: Tensor, all_mask_preds: Tensor,
+                     batch_gt_instances: List[InstanceData],
+                     batch_img_metas: List[dict]) -> Dict[str, Tensor]:
+        """Loss function.
 
+        Args:
+            all_cls_scores (Tensor): Classification scores for all decoder
+                layers with shape (num_decoder, batch_size, num_queries,
+                cls_out_channels). Note `cls_out_channels` should includes
+                background.
+            all_mask_preds (Tensor): Mask scores for all decoder layers with
+                shape (num_decoder, batch_size, num_queries, h, w).
+            batch_gt_instances (list[obj:`InstanceData`]): each contains
+                ``labels`` and ``masks``.
+            batch_img_metas (list[dict]): List of image meta information.
+
+        Returns:
+            dict[str, Tensor]: A dictionary of loss components.
+        """
+        num_dec_layers = len(all_cls_scores)
+        batch_gt_instances_list = [
+            batch_gt_instances for _ in range(num_dec_layers)
+        ]
+        img_metas_list = [batch_img_metas for _ in range(num_dec_layers)]
+        losses_cls, losses_mask, losses_dice, losses_constrastive = multi_apply(
+            self._loss_by_feat_single, all_cls_scores, all_mask_preds,
+            batch_gt_instances_list, img_metas_list)
+
+        loss_dict = dict()
+        # loss from the last decoder layer
+        loss_dict['loss_cls'] = losses_cls[-1]
+        loss_dict['loss_mask'] = losses_mask[-1]
+        loss_dict['loss_dice'] = losses_dice[-1]
+        
+        
+        if losses_constrastive[0] is not None:
+            loss_dict['loss_constrastive'] = losses_constrastive[-1]
+        # loss from other decoder layers
+        num_dec_layer = 0
+        for loss_cls_i, loss_mask_i, loss_dice_i, loss_constrastive in zip(
+                losses_cls[:-1], losses_mask[:-1], losses_dice[:-1], losses_constrastive[:-1]):
+            loss_dict[f'd{num_dec_layer}.loss_cls'] = loss_cls_i
+            loss_dict[f'd{num_dec_layer}.loss_mask'] = loss_mask_i
+            loss_dict[f'd{num_dec_layer}.loss_dice'] = loss_dice_i
+            if loss_constrastive is not None:
+                loss_dict[f'd{num_dec_layer}.loss_constrastive'] = loss_constrastive
+            num_dec_layer += 1
+        return loss_dict
+    
+    
     def _loss_by_feat_single(self, cls_scores: Tensor, mask_preds: Tensor,
                              batch_gt_instances: List[InstanceData],
                              batch_img_metas: List[dict]) -> Tuple[Tensor]:
@@ -361,6 +420,12 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         num_imgs = cls_scores.size(0)
         cls_scores_list = [cls_scores[i] for i in range(num_imgs)]
         mask_preds_list = [mask_preds[i] for i in range(num_imgs)]
+        
+        loss_constrastive = None
+        if self.loss_constrastive is not None:
+            loss_constrastive = self.loss_constrastive(torch.stack(cls_scores_list), \
+                                    torch.stack(mask_preds_list), batch_gt_instances, batch_img_metas)
+
         (labels_list, label_weights_list, mask_targets_list, mask_weights_list,
          avg_factor) = self.get_targets(cls_scores_list, mask_preds_list,
                                         batch_gt_instances, batch_img_metas)
@@ -378,7 +443,6 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         # shape (batch_size * num_queries, )
         cls_scores = cls_scores.flatten(0, 1)
         labels = labels.flatten(0, 1)
-        labels[labels > self.num_classes] = self.num_classes
         label_weights = label_weights.flatten(0, 1)
 
         class_weight = cls_scores.new_tensor(self.class_weight)
@@ -393,6 +457,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
 
         # extract positive ones
         # shape (batch_size, num_queries, h, w) -> (num_total_gts, h, w)
+        
         mask_preds = mask_preds[mask_weights > 0]
 
         if mask_targets.shape[0] == 0:
@@ -400,6 +465,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
             loss_dice = mask_preds.sum()
             loss_mask = mask_preds.sum()
             return loss_cls, loss_mask, loss_dice
+        
 
         with torch.no_grad():
             points_coords = get_uncertain_point_coords_with_randomness(
@@ -412,6 +478,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         mask_point_preds = point_sample(
             mask_preds.unsqueeze(1), points_coords).squeeze(1)
 
+        
         # dice loss
         loss_dice = self.loss_dice(
             mask_point_preds, mask_point_targets, avg_factor=num_total_masks)
@@ -426,7 +493,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
             mask_point_targets,
             avg_factor=num_total_masks * self.num_points)
 
-        return loss_cls, loss_mask, loss_dice
+        return loss_cls, loss_mask, loss_dice, loss_constrastive
 
     def _forward_head(self, decoder_out: Tensor, mask_feature: Tensor,
                       attn_mask_target_size: Tuple[int, int]) -> Tuple[Tensor]:
@@ -515,6 +582,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
             decoder_inputs.append(decoder_input)
             decoder_positional_encodings.append(decoder_positional_encoding)
         # shape (num_queries, c) -> (batch_size, num_queries, c)
+        
         if self.with_text_init:
             query_feat = (self.query_feat.weight + \
                 self.text_embed_channel(self.text_embed)).unsqueeze(0).repeat((batch_size, 1, 1))
@@ -612,6 +680,7 @@ class FixedMatchingMask2FormerHead(MMDET_Mask2FormerHead):
         else:
             size = batch_img_metas[0]['img_shape']
         # upsample mask
+        
         mask_pred_results = F.interpolate(
             mask_pred_results, size=size, mode='bilinear', align_corners=False)
         cls_score = F.softmax(mask_cls_results, dim=-1)[..., :-1]

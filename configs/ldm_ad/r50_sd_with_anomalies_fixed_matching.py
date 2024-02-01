@@ -2,9 +2,6 @@ _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
 easy_start = True
 
-# dataset settings
-dataset_type = 'CityscapesWithAnomaliesDataset'
-data_root = 'data/cityscapes/'
 crop_size = (512, 1024)
 data_preprocessor = dict(
     type='SegDataPreProcessor',
@@ -35,6 +32,7 @@ model = dict(
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
+    with_ldm=True,
     decode_head=dict(
         type='FixedMatchingMask2FormerHead',
         in_channels=[256, 832, 1664, 3328],
@@ -149,7 +147,36 @@ train_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=1000, pipeline=train_pipeline))
+
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations'), 
+    dict(type='Resize', scale=(1024, 512)),
+    dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
+    # dict(type='UnifyGT', label_map={0: 0, 1: 1, 255: 0}), 
+    dict(type='PackSegInputs')
+]
+
+# dataset settings
+train_dataset_type = 'CityscapesWithAnomaliesDataset'
+train_data_root = 'data/cityscapes/'
+test_dataset_type = 'RoadAnomalyDataset'
+test_data_root = 'data/RoadAnomaly'
+# test_dataset_type = 'FSLostAndFoundDataset'
+# test_data_root = 'data/FS_LostFound'
+easy_start = True
+
+train_dataloader = dict(dataset=dict(type=train_dataset_type, 
+                                     data_root=train_data_root, 
+                                     num_anomalies=1000, 
+                                     num_classes=num_classes, 
+                                     pipeline=train_pipeline))
+val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+                                     data_root=test_data_root, 
+                                     pipeline=test_pipeline))
+test_dataloader = val_dataloader
+val_evaluator = dict(type='AnomalyMetric')
+test_evaluator = val_evaluator
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)

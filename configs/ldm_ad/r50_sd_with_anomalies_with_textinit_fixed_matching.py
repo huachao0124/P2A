@@ -35,6 +35,7 @@ model = dict(
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
+    with_ldm=True, 
     decode_head=dict(
         type='FixedMatchingMask2FormerHead',
         in_channels=[256, 832, 1664, 3328],

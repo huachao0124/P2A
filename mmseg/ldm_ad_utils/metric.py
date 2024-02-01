@@ -66,6 +66,8 @@ class AnomalyMetric(BaseMetric):
         if self.output_dir and is_main_process():
             mkdir_or_exist(self.output_dir)
         self.format_only = format_only
+        self.seg_logits = []
+        self.gt_anomaly_maps = []
 
     def process(self, data_batch: dict, data_samples: Sequence[dict]) -> None:
         """Process one batch of data and data_samples.
@@ -80,11 +82,9 @@ class AnomalyMetric(BaseMetric):
         seg_logits = []
         gt_anomaly_maps = []
         for data_sample in data_samples:
-            seg_logits.append(data_sample['seg_logits']['data'])
-            gt_anomaly_maps.append(data_sample['gt_sem_seg']['data'])
+            self.seg_logits.append(data_sample['seg_logits']['data'])
+            self.gt_anomaly_maps.append(data_sample['gt_sem_seg']['data'])
         
-        self.results.append(seg_logits)
-        self.results.append(gt_anomaly_maps)
             
     
     def compute_metrics(self, results: list) -> Dict[str, float]:
@@ -99,16 +99,30 @@ class AnomalyMetric(BaseMetric):
                 mainly includes aAcc, mIoU, mAcc, mDice, mFscore, mPrecision,
                 mRecall.
         """
-        seg_logits = self.results[0]
-        gt_anomaly_maps = self.results[1]
+        seg_logits = self.seg_logits
+        gt_anomaly_maps = self.gt_anomaly_maps
         
-        seg_logits = torch.stack(seg_logits)
-        # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten().cpu().numpy()
-        # pred_anomaly_maps = 1 - torch.max(seg_logits[:, :19, :, :], dim=1)[0].flatten().cpu().numpy()
-        # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten().cpu().numpy() * (1 - torch.max(seg_logits[:, :19, :, :], dim=1)[0].flatten().cpu().numpy())
-        pred_anomaly_maps = seg_logits[:, -1, :, :].flatten().cpu().numpy() / torch.max(seg_logits[:, :19, :, :], dim=1)[0].flatten().cpu().numpy()
-        gt_anomaly_maps = torch.stack(gt_anomaly_maps).flatten().cpu().numpy()
-        gt_anomaly_maps[gt_anomaly_maps > 0] = 1
+        
+        print(seg_logits[0].shape, gt_anomaly_maps[0].shape)
+        
+        seg_logits = torch.stack(seg_logits).cpu().numpy()
+        gt_anomaly_maps = torch.stack(gt_anomaly_maps).cpu().numpy()
+                
+        has_anomaly = np.array([(1 in np.unique(gt_anomaly_map)) for gt_anomaly_map in gt_anomaly_maps])
+        
+        seg_logits = seg_logits[has_anomaly]
+        gt_anomaly_maps = gt_anomaly_maps[has_anomaly].flatten()
+        
+        print(seg_logits.shape, gt_anomaly_maps.shape)
+        
+        
+        # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten()
+        pred_anomaly_maps = (1 - np.max(seg_logits[:, :19, :, :], axis=1)).flatten()
+        # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten() * (1 - np.max(seg_logits[:, :19, :, :], axis=1)).flatten()
+        # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten() / np.max(seg_logits[:, :19, :, :], axis=1).flatten()
+        # gt_anomaly_maps[gt_anomaly_maps > 0] = 1
+        
+        assert ((gt_anomaly_maps == 0) | (gt_anomaly_maps == 1)).all()
         
         ood_mask = (gt_anomaly_maps == 1)
         ind_mask = (gt_anomaly_maps == 0)

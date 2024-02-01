@@ -101,10 +101,12 @@ class GroupHungarianAssigner(HungarianAssigner):
                pred_instances: InstanceData,
                gt_instances: InstanceData,
                img_meta: Optional[dict] = None,
+               num_queries_per_class: int = 1, 
                **kwargs) -> AssignResult:
         assert isinstance(gt_instances.labels, Tensor)
         num_gts, num_preds = len(gt_instances), len(pred_instances)
         gt_labels = gt_instances.labels
+        gt_labels[gt_labels > (img_meta['num_classes']-1)] = img_meta['num_classes'] - 1
         device = gt_labels.device
 
         # 1. assign -1 by default
@@ -131,13 +133,15 @@ class GroupHungarianAssigner(HungarianAssigner):
         # assign all indices to backgrounds first
         assigned_gt_inds[:] = 0
         
-        num_queries_per_class = num_preds // img_meta['num_classes']
         for class_idx in range(img_meta['num_classes']):
           
             if class_idx < img_meta['num_classes'] - 1:
                 remain_gt_indices = (gt_labels == class_idx)
-            else:
+                remain_pred_instances = pred_instances[class_idx*num_queries_per_class: \
+                                                        (class_idx+1)*num_queries_per_class]
+            elif class_idx == img_meta['num_classes'] - 1:
                 remain_gt_indices = (gt_labels >= class_idx)
+                remain_pred_instances = pred_instances[class_idx*num_queries_per_class:]
             if remain_gt_indices.sum() == 0:
                 continue
             # 2. compute weighted cost
@@ -147,8 +151,7 @@ class GroupHungarianAssigner(HungarianAssigner):
             cost_list = []
             for match_cost in self.match_costs:
                 cost = match_cost(
-                    pred_instances=pred_instances[class_idx*num_queries_per_class: \
-                                                (class_idx+1)*num_queries_per_class],
+                    pred_instances=remain_pred_instances,
                     gt_instances=remain_gt_instances,
                     img_meta=img_meta)
                 cost_list.append(cost)
@@ -161,7 +164,7 @@ class GroupHungarianAssigner(HungarianAssigner):
 
             
             matched_row_inds, matched_col_inds = linear_sum_assignment(cost)
-            matched_row_inds += class_idx * num_queries_per_class
+            matched_row_inds += (class_idx * num_queries_per_class)
             matched_col_inds = np.nonzero(remain_gt_indices.cpu().numpy())[0][matched_col_inds]
             matched_row_inds = torch.from_numpy(matched_row_inds).to(device)
             matched_col_inds = torch.from_numpy(matched_col_inds).to(device)
@@ -177,10 +180,8 @@ class GroupHungarianAssigner(HungarianAssigner):
                         (assigned_labels[class_idx*num_queries_per_class:\
                                         (class_idx+1)*num_queries_per_class] == -1)).all()
             else:
-                assert ((assigned_labels[class_idx*num_queries_per_class:\
-                                        (class_idx+1)*num_queries_per_class] >= class_idx) | \
-                        (assigned_labels[class_idx*num_queries_per_class:\
-                                        (class_idx+1)*num_queries_per_class] == -1)).all()
+                assert ((assigned_labels[class_idx*num_queries_per_class:] == class_idx) | \
+                        (assigned_labels[class_idx*num_queries_per_class:] == -1)).all()
             
         return AssignResult(
             num_gts=num_gts,

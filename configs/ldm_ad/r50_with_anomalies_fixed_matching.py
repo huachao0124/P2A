@@ -1,6 +1,6 @@
 _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
-easy_start = False
+easy_start = True
 
 # dataset settings
 dataset_type = 'CityscapesWithAnomaliesDataset'
@@ -35,6 +35,7 @@ model = dict(
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
+    with_ldm=True, 
     decode_head=dict(
         type='FixedMatchingMask2FormerHead',
         in_channels=[256, 512, 1024, 2048],
