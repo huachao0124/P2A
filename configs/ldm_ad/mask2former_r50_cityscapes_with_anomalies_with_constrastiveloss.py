@@ -186,7 +186,6 @@ test_dataloader = val_dataloader
 val_evaluator = dict(type='AnomalyMetric')
 test_evaluator = val_evaluator
 
-
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)
 optimizer = dict(

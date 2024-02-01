@@ -82,6 +82,7 @@ class AnomalyMetric(BaseMetric):
         seg_logits = []
         gt_anomaly_maps = []
         for data_sample in data_samples:
+            self.results.append((data_sample['seg_logits']['data'], data_sample['gt_sem_seg']['data']))
             self.seg_logits.append(data_sample['seg_logits']['data'])
             self.gt_anomaly_maps.append(data_sample['gt_sem_seg']['data'])
         
@@ -99,6 +100,12 @@ class AnomalyMetric(BaseMetric):
                 mainly includes aAcc, mIoU, mAcc, mDice, mFscore, mPrecision,
                 mRecall.
         """
+        
+        print(len(results))
+        print(len(results[0]))
+        print(len(results[1]))
+        print(results[0][0].shape)
+        
         seg_logits = self.seg_logits
         gt_anomaly_maps = self.gt_anomaly_maps
         
