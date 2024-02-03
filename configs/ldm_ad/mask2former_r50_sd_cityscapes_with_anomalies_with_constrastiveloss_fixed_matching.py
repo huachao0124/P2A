@@ -119,6 +119,7 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
+        loss_contrastive=dict(type='ContrastiveLoss'),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -218,7 +219,7 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='AUPRC', rule='greater'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=5))
+    visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=5))
 
 custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 

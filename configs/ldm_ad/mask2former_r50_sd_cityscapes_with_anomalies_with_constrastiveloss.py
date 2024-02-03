@@ -1,10 +1,5 @@
 _base_ = ['../_base_/default_runtime.py', '../_base_/datasets/cityscapes.py']
 
-easy_start = True
-
-# dataset settings
-dataset_type = 'CityscapesWithAnomaliesDataset'
-data_root = 'data/cityscapes/'
 crop_size = (512, 1024)
 data_preprocessor = dict(
     type='SegDataPreProcessor',
@@ -35,6 +30,7 @@ model = dict(
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
+    with_ldm=True,
     decode_head=dict(
         type='FixedMatchingMask2FormerHead',
         in_channels=[256, 832, 1664, 3328],
@@ -42,11 +38,9 @@ model = dict(
         feat_channels=256,
         out_channels=256,
         num_classes=num_classes,
-        num_queries=num_classes * 5 + 10,
-        num_queries_per_class=5,
+        num_queries=100,
         num_transformer_feat_level=3,
         align_corners=False,
-        with_text_init=True, 
         pixel_decoder=dict(
             type='mmdet.MSDeformAttnPixelDecoder',
             in_channels=[256, 832, 1664, 3328],
@@ -125,12 +119,13 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
+        loss_contrastive=dict(type='ContrastiveLoss'),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
             importance_sample_ratio=0.75,
             assigner=dict(
-                type='GroupHungarianAssigner',
+                type='mmdet.HungarianAssigner',
                 match_costs=[
                     dict(type='mmdet.ClassificationCost', weight=2.0),
                     dict(
@@ -152,7 +147,7 @@ buffer_path = 'ldm/buffer'
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='PasteAnomalies', buffer_path=buffer_path, part_instance=True), 
+    dict(type='PasteAnomalies', buffer_path=buffer_path), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -161,12 +156,39 @@ train_pipeline = [
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
-    dict(type='PackSegInputs', meta_keys=('img_path', 'seg_map_path', 'ori_shape',
-                                    'img_shape', 'pad_shape', 'scale_factor', 'flip',
-                                    'flip_direction', 'reduce_zero_label', 'num_classes'))
+    dict(type='PackSegInputs')
 ]
 
-train_dataloader = dict(dataset=dict(type=dataset_type, num_anomalies=1000, pipeline=train_pipeline))
+
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations'), 
+    dict(type='Resize', scale=(1024, 512)),
+    dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
+    # dict(type='UnifyGT', label_map={0: 0, 1: 1, 255: 0}), 
+    dict(type='PackSegInputs')
+]
+
+# dataset settings
+train_dataset_type = 'CityscapesWithAnomaliesDataset'
+train_data_root = 'data/cityscapes/'
+test_dataset_type = 'RoadAnomalyDataset'
+test_data_root = 'data/RoadAnomaly'
+# test_dataset_type = 'FSLostAndFoundDataset'
+# test_data_root = 'data/FS_LostFound'
+easy_start = True
+
+train_dataloader = dict(dataset=dict(type=train_dataset_type, 
+                                     data_root=train_data_root, 
+                                     num_anomalies=1000, 
+                                     num_classes=num_classes, 
+                                     pipeline=train_pipeline))
+val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+                                     data_root=test_data_root, 
+                                     pipeline=test_pipeline))
+test_dataloader = val_dataloader
+val_evaluator = dict(type='AnomalyMetric')
+test_evaluator = val_evaluator
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)
@@ -208,11 +230,11 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
-        save_best='mIoU'),
+        save_best='AUPRC', rule='greater'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=50))
+    visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=5))
 
-custom_hooks = [dict(type='TextInitQueriesHook'), dict(type='GeneratePseudoAnomalyHook')]
+custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically

@@ -53,6 +53,7 @@ class ContrastiveLoss(nn.Module):
         score = -torch.max(seg_logits[:, :19], dim=1)[0]  
         ood_score = score[ood_mask == 1]
         id_score = score[ood_mask == 0]
+        assert ((ood_mask == 0) | (ood_mask == 1)).all()
         loss = torch.pow(id_score, 2).mean()
         if ood_mask.sum() > 0:
             loss = loss + torch.pow(torch.clamp(self.margin - ood_score, min=0.0), 2).mean()

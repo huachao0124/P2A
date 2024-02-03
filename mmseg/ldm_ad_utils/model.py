@@ -741,16 +741,15 @@ class Mask2FormerHeadWithCoco(Mask2FormerHead):
             masks = []
             for class_id in gt_labels:
                 masks.append(gt_sem_seg == class_id)
-            ood_mask = (gt_sem_seg == 254)
             if len(masks) == 0:
                 gt_masks = torch.zeros(
                     (0, gt_sem_seg.shape[-2],
                      gt_sem_seg.shape[-1])).to(gt_sem_seg).long()
             else:
                 gt_masks = torch.stack(masks).squeeze(1).long()
-
+            ood_mask = (gt_sem_seg == 254).int().repeat(max(1, len(masks)), 1, 1)
             instance_data = InstanceData(labels=gt_labels, masks=gt_masks)
-            instance_data.ood_mask = ood_mask.repeat(gt_masks.shape[0], 1, 1)
+            instance_data.ood_mask = ood_mask
             batch_gt_instances.append(instance_data)
         return batch_gt_instances, batch_img_metas
     
