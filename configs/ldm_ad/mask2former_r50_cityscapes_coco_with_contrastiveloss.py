@@ -10,9 +10,9 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size,
     test_cfg=dict(size_divisor=32))
-num_classes = 20
+num_classes = 19
 model = dict(
-    type='EncoderDecoderLDM',
+    type='EncoderDecoder',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -24,21 +24,14 @@ model = dict(
         norm_cfg=dict(type='SyncBN', requires_grad=False),
         style='pytorch',
         init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
-    ldm=dict(
-        type='DDIMSampler', 
-        model='configs/ldm_ad/cldm_v15.yaml', 
-        ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
-        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
-    ), 
-    with_ldm=True, 
     decode_head=dict(
-        type='FixedMatchingMask2FormerHead',
+        type='Mask2FormerHeadWithCoco',
         in_channels=[256, 512, 1024, 2048],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
         num_classes=num_classes,
-        num_queries=num_classes,
+        num_queries=100,
         num_transformer_feat_level=3,
         align_corners=False,
         pixel_decoder=dict(
@@ -118,13 +111,13 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_contrastive=dict(type='ContrastiveLoss'),
+        loss_contrastive=dict(type='ContrastiveLossCoco', loss_weight=1.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
             importance_sample_ratio=0.75,
             assigner=dict(
-                type='FixedAssigner',
+                type='mmdet.HungarianAssigner',
                 match_costs=[
                     dict(type='mmdet.ClassificationCost', weight=2.0),
                     dict(
@@ -141,12 +134,10 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 
-buffer_path = 'ldm/buffer'
 # dataset config
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='PasteAnomalies', buffer_path=buffer_path), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -158,7 +149,6 @@ train_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
@@ -168,16 +158,18 @@ test_pipeline = [
 ]
 
 # dataset settings
-train_dataset_type = 'CityscapesWithAnomaliesDataset'
+train_dataset_type = 'CityscapesWithCocoDataset'
 train_data_root = 'data/cityscapes/'
 test_dataset_type = 'RoadAnomalyDataset'
 test_data_root = 'data/RoadAnomaly'
 # test_dataset_type = 'FSLostAndFoundDataset'
 # test_data_root = 'data/FS_LostFound'
+easy_start = True
 
+load_from = 'work_dirs/mask2former_r50_8xb2-90k_cityscapes-512x1024/iter_90000.pth'
 train_dataloader = dict(dataset=dict(type=train_dataset_type, 
+                                     anomaly_file_path='./data/coco/annotations/ood_seg_train2017', 
                                      data_root=train_data_root, 
-                                     num_anomalies=1000, 
                                      pipeline=train_pipeline))
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
@@ -185,7 +177,6 @@ val_dataloader = dict(dataset=dict(type=test_dataset_type,
 test_dataloader = val_dataloader
 val_evaluator = dict(type='AnomalyMetric')
 test_evaluator = val_evaluator
-
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)
@@ -215,7 +206,7 @@ param_scheduler = [
 ]
 
 # training schedule for 90k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=90000, val_interval=5000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=5000, val_interval=1000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
@@ -224,13 +215,9 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
-        save_best='AUPRC', rule='greater'),
+        save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
-
-easy_start = True
-buffer_path = 'ldm/buffer'
-custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
+    visualization=dict(type='SegVisualizationHook'))
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically

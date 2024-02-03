@@ -223,7 +223,7 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
-        save_best='AUPRC'),
+        save_best='AUPRC', rule='greater'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
 

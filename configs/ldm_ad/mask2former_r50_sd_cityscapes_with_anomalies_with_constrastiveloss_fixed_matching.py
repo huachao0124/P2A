@@ -12,7 +12,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 20
 model = dict(
-    type='EncoderDecoderLDM',
+    type='EncoderDecoderWithLDMBackbone',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -30,10 +30,10 @@ model = dict(
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
-    with_ldm=True, 
+    with_ldm=True,
     decode_head=dict(
         type='FixedMatchingMask2FormerHead',
-        in_channels=[256, 512, 1024, 2048],
+        in_channels=[256, 832, 1664, 3328],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
@@ -43,6 +43,7 @@ model = dict(
         align_corners=False,
         pixel_decoder=dict(
             type='mmdet.MSDeformAttnPixelDecoder',
+            in_channels=[256, 832, 1664, 3328],
             num_outs=3,
             norm_cfg=dict(type='GN', num_groups=32),
             act_cfg=dict(type='ReLU'),
@@ -118,25 +119,11 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_contrastive=dict(type='ContrastiveLoss'),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
             importance_sample_ratio=0.75,
-            assigner=dict(
-                type='FixedAssigner',
-                match_costs=[
-                    dict(type='mmdet.ClassificationCost', weight=2.0),
-                    dict(
-                        type='mmdet.CrossEntropyLossCost',
-                        weight=5.0,
-                        use_sigmoid=True),
-                    dict(
-                        type='mmdet.DiceCost',
-                        weight=5.0,
-                        pred_act=True,
-                        eps=1.0)
-                ]),
+            assigner=dict(type='FixedAssigner'),
             sampler=dict(type='mmdet.MaskPseudoSampler'))),
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
@@ -162,6 +149,7 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
+    dict(type='Resize', scale=(1024, 512)),
     dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
     # dict(type='UnifyGT', label_map={0: 0, 1: 1, 255: 0}), 
     dict(type='PackSegInputs')
@@ -174,10 +162,12 @@ test_dataset_type = 'RoadAnomalyDataset'
 test_data_root = 'data/RoadAnomaly'
 # test_dataset_type = 'FSLostAndFoundDataset'
 # test_data_root = 'data/FS_LostFound'
+easy_start = True
 
 train_dataloader = dict(dataset=dict(type=train_dataset_type, 
                                      data_root=train_data_root, 
                                      num_anomalies=1000, 
+                                     num_classes=num_classes, 
                                      pipeline=train_pipeline))
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
@@ -185,7 +175,6 @@ val_dataloader = dict(dataset=dict(type=test_dataset_type,
 test_dataloader = val_dataloader
 val_evaluator = dict(type='AnomalyMetric')
 test_evaluator = val_evaluator
-
 
 # optimizer
 embed_multi = dict(lr_mult=1.0, decay_mult=0.0)
@@ -215,6 +204,9 @@ param_scheduler = [
 ]
 
 # training schedule for 90k
+vis_backends = [dict(type='LocalVisBackend'), dict(type='TensorboardVisBackend')]
+visualizer = dict(
+    type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=90000, val_interval=5000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
@@ -226,10 +218,8 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='AUPRC', rule='greater'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=5))
 
-easy_start = True
-buffer_path = 'ldm/buffer'
 custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically

@@ -4,8 +4,6 @@ import time
 import numpy as np
 
 from PIL import Image
-from config import cs_coco_roots
-from src.dataset.coco import COCO
 from pycocotools.coco import COCO as coco_tools
 
 
@@ -13,24 +11,22 @@ class cs_coco_roots:
     """
     OoD training roots for Cityscapes + COCO mix
     """
-    model_name  = MODEL
-    init_ckpt   = os.path.join("/home/chan/io/cityscapes/weights/", model_name + ".pth")
-    cs_root     = "/home/datasets/cityscapes/"
-    coco_root   = "/home/datasets/COCO/2017"
-    io_root     = IO + "meta_ood_" + model_name
-    weights_dir = os.path.join(io_root, "weights/")
-
+    cs_root     = "./data/cityscapes/"
+    coco_root   = "../../data/coco"
+    train_id_in = 0
+    train_id_out = 254
+    min_image_size = 480
 
 def main():
     start = time.time()
     root = cs_coco_roots.coco_root
     split = "train"
     year = 2017
-    id_in = COCO.train_id_in
-    id_out = COCO.train_id_out
-    min_size = COCO.min_image_size
+    id_in = cs_coco_roots.train_id_in
+    id_out = cs_coco_roots.train_id_out
+    min_size = cs_coco_roots.min_image_size
     annotation_file = '{}/annotations/instances_{}.json'.format(root, split+str(year))
-    images_dir = '{}/{}'.format(root, split+str(year))
+    images_dir = '{}/{}'.format(root, 'images/' + split + str(year))
     tools = coco_tools(annotation_file)
     save_dir = '{}/annotations/ood_seg_{}'.format(root, split+str(year))
     print("\nPrepare COCO{} {} split for OoD training".format(str(year), split))

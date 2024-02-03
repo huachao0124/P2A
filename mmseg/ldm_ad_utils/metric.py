@@ -140,11 +140,11 @@ class AnomalyMetric(BaseMetric):
         for key, val in zip(('AUPRC', 'FPR@95TPR', 'AUROC'), (prc_auc, fpr, roc_auc)):
             metrics[key] = np.round(val * 100, 2)
         metrics = OrderedDict(metrics)
-        metrics.update({'Class': 'Anomaly'})
-        metrics.move_to_end('Class', last=False)
+        metrics.update({'Dataset': 'RoadAnomaly'})
+        metrics.move_to_end('Dataset', last=False)
         class_table_data = PrettyTable()
         for key, val in metrics.items():
-            class_table_data.add_column(key, val)
+            class_table_data.add_column(key, [val])
 
         print_log('anomaly segmentation results:', logger)
         print_log('\n' + class_table_data.get_string(), logger=logger)
