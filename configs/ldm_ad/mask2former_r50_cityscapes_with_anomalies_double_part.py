@@ -12,7 +12,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 19
 model = dict(
-    type='EncoderDecoderLDMDoublePart',
+    type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -31,12 +31,11 @@ model = dict(
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
     with_ldm=True, 
-    with_ldm_as_backbone=True,
     decode_head=dict(
         type='DoubleMask2FormerHead',
         train_with_anomaly=True, 
         num_queries_for_anomaly=20, 
-        in_channels=[256, 832, 1664, 3328],
+        in_channels=[256, 512, 1024, 2048],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
@@ -46,7 +45,6 @@ model = dict(
         align_corners=False,
         pixel_decoder=dict(
             type='mmdet.MSDeformAttnPixelDecoder',
-            in_channels=[256, 832, 1664, 3328],
             num_outs=3,
             norm_cfg=dict(type='GN', num_groups=32),
             act_cfg=dict(type='ReLU'),
@@ -171,7 +169,6 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
-    dict(type='Resize', scale=(1024, 512)),
     dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
     # dict(type='UnifyGT', label_map={0: 0, 1: 1, 255: 0}), 
     dict(type='PackSegInputs')
@@ -193,7 +190,7 @@ val_dataloader = dict(dataset=dict(type=test_dataset_type,
                                      data_root=test_data_root, 
                                      pipeline=test_pipeline))
 test_dataloader = val_dataloader
-val_evaluator = dict(type='AnomalyMetricDoublePart')
+val_evaluator = dict(type='AnomalyMetric')
 test_evaluator = val_evaluator
 
 # optimizer
@@ -235,7 +232,7 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='AUPRC', rule='greater'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=1))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=5))
 
 easy_start = True
 buffer_path = 'ldm/buffer'

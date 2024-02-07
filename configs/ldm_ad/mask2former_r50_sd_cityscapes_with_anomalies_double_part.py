@@ -12,7 +12,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 19
 model = dict(
-    type='EncoderDecoderLDMDoublePart',
+    type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -193,7 +193,7 @@ val_dataloader = dict(dataset=dict(type=test_dataset_type,
                                      data_root=test_data_root, 
                                      pipeline=test_pipeline))
 test_dataloader = val_dataloader
-val_evaluator = dict(type='AnomalyMetricDoublePart')
+val_evaluator = dict(type='AnomalyMetric')
 test_evaluator = val_evaluator
 
 # optimizer
@@ -235,7 +235,7 @@ default_hooks = dict(
         type='CheckpointHook', by_epoch=False, interval=5000,
         save_best='AUPRC', rule='greater'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=1))
+    visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=5))
 
 easy_start = True
 buffer_path = 'ldm/buffer'

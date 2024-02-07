@@ -172,7 +172,7 @@ val_dataloader = dict(dataset=dict(type=test_dataset_type,
                                      data_root=test_data_root, 
                                      pipeline=test_pipeline))
 test_dataloader = val_dataloader
-val_evaluator = dict(type='AnomalyMetric')
+val_evaluator = dict(type='AnomalyMetricRbA')
 test_evaluator = val_evaluator
 
 # optimizer

@@ -84,25 +84,19 @@ class PasteAnomalies(BaseTransform):
     def __init__(self, 
                  buffer_path='ldm/buffer', 
                  part_instance=False, 
-                 rotate_prob=0.5, 
-                 flip_prob=0.5, 
-                 degree=(-20, 20)):
-        self.rotate_prob = rotate_prob
+                 mix_ratio=0.5, 
+                 flip_prob=0.5):
+        self.mix_ratio = mix_ratio
         self.flip_prob = flip_prob
-        assert 0 <= rotate_prob <= 1 and 0 <= flip_prob <= 1
-        if isinstance(degree, (float, int)):
-            assert degree > 0, f'degree {degree} should be positive'
-            self.degree = (-degree, degree)
-        else:
-            self.degree = degree
-        assert len(self.degree) == 2, f'degree {self.degree} should be a ' \
-                                      f'tuple of (min, max)'
+        assert 0 <= mix_ratio <= 1 and 0 <= flip_prob <= 1
         self.buffer_path = buffer_path
         self.part_instance = part_instance
     
-    def transform(self, results: dict) -> dict:        
+    def transform(self, results: dict) -> dict: 
+        if np.random.uniform() >= self.mix_ratio:
+            return results
         # select random anomalies
-        curr_num_anomalies = random.choices(range(6), weights=[2, 10, 5, 2, 1, 1], k=1)[0]
+        curr_num_anomalies = random.choices(range(1, 6), weights=[10, 5, 2, 2, 2], k=1)[0]
         selected_anomalies_indices = random.choices(range(results['num_anomalies']), k=curr_num_anomalies)
         results['anomalies'] = []
         for idx in selected_anomalies_indices:
@@ -156,6 +150,9 @@ class PasteAnomalies(BaseTransform):
 
 @DATASETS.register_module()
 class RoadAnomalyDataset(Dataset):
+    METAINFO = dict(
+        classes=('anomaly', 'not anomaly'),
+        palette=[[128, 64, 128], [244, 35, 232]])
     def __init__(self, 
                  data_root: str = None, 
                  pipeline: List[Union[dict, Callable]] = [], 
@@ -209,8 +206,138 @@ class UnifyGT(BaseTransform):
         return results
 
 
+@DATASETS.register_module()
+class CocoSemSeg(Dataset):
+    def __init__(self, data_root: str, proxy_size: int = 5000, split: str = "train",
+                 transform: Optional[Callable] = None, shuffle=True) -> None:
+        """
+        COCO dataset loader
+        """
+        self.data_root = data_root
+        self.coco_year = '2017'
+        self.split = split + self.coco_year
+        self.images = []
+        self.targets = []
+        self.transform = transform
+                
+        for filename in glob.glob(os.path.join(data_root, "annotations", "ood_seg_" + self.split, '*.png')):
+            self.targets.append(filename)
+            self.images.append(filename.replace('annotations', 'images').replace('ood_seg_', '').replace('.png', '.jpg'))
+        
+        if shuffle:
+            zipped = list(zip(self.images, self.targets))
+            random.shuffle(zipped)
+            self.images, self.targets = zip(*zipped)
+
+        self.images = list(self.images[:proxy_size])
+        self.targets = list(self.targets[:proxy_size])
+        
+    def __len__(self):
+        """Return total number of images in the whole dataset."""
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        """Return raw image and ground truth in PIL format or as torch tensor"""
+        image = cv2.imread(self.images[idx])
+        target = cv2.imread(self.targets[idx], cv2.IMREAD_GRAYSCALE)
+        if self.transform is not None:
+            image, target = self.transform(image, target)
+
+        return image, target
+
+    def __repr__(self):
+        """Return number of images in each dataset."""
+
+        fmt_str = 'Number of COCO Images: %d\n' % len(self.images)
+        return fmt_str.strip()
+
+
+@DATASETS.register_module()
+class CityscapesWithCocoDataset(CityscapesDataset):
+    """Cityscapes dataset.
+
+    The ``img_suffix`` is fixed to '_leftImg8bit.png' and ``seg_map_suffix`` is
+    fixed to '_gtFine_labelTrainIds.png' for Cityscapes dataset.
+    """
+    METAINFO = dict(
+        classes=('road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+                 'traffic light', 'traffic sign', 'vegetation', 'terrain',
+                 'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
+                 'motorcycle', 'bicycle', 'anomaly'),
+        palette=[[128, 64, 128], [244, 35, 232], [70, 70, 70], [102, 102, 156],
+                 [190, 153, 153], [153, 153, 153], [250, 170, 30], [220, 220, 0],
+                 [107, 142, 35], [152, 251, 152], [70, 130, 180],
+                 [220, 20, 60], [255, 0, 0], [0, 0, 142], [0, 0, 70],
+                 [0, 60, 100], [0, 80, 100], [0, 0, 230], [119, 11, 32], 
+                 [0, 255, 0]])
+    def __init__(self, 
+                 coco_file_path, 
+                 img_size = (1024, 2048), 
+                 **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.coco_dataset = CocoSemSeg(coco_file_path)
+    
+    def get_data_info(self, idx: int) -> dict:
+        """Get annotation by index and automatically call ``full_init`` if the
+        dataset has not been fully initialized.
+
+        Args:
+            idx (int): The index of data.
+
+        Returns:
+            dict: The idx-th annotation of the dataset.
+        """
+        if self.serialize_data:
+            start_addr = 0 if idx == 0 else self.data_address[idx - 1].item()
+            end_addr = self.data_address[idx].item()
+            bytes = memoryview(
+                self.data_bytes[start_addr:end_addr])  # type: ignore
+            data_info = pickle.loads(bytes)  # type: ignore
+        else:
+            data_info = copy.deepcopy(self.data_list[idx])
+        # Some codebase needs `sample_idx` of data information. Here we convert
+        # the idx to a positive number and save it in data information.
+        if idx >= 0:
+            data_info['sample_idx'] = idx
+        else:
+            data_info['sample_idx'] = len(self) + idx
+        
+        data_info['coco_data'] = self.coco_dataset[np.random.randint(0, len(self.coco_dataset))]
+        
+        return data_info
+    
+
 @TRANSFORMS.register_module()
 class PasteCocoObjects(BaseTransform):
+    
+    def __init__(self, 
+                 mix_ratio=0.2):
+        super().__init__()
+        self.mix_ratio = mix_ratio
+        
+    #Source: https://github.com/tianyu0207/PEBAL/blob/main/code/dataset/data_loader.py
+    def extract_bboxes(self, mask):
+        """Compute bounding boxes from masks.
+        mask: [height, width, num_instances]. Mask pixels are either 1 or 0.
+        Returns: bbox array [num_instances, (y1, x1, y2, x2)].
+        """        
+        boxes = np.zeros([mask.shape[-1], 4], dtype=np.int32)
+
+        for i in range(mask.shape[-1]):
+            m = mask[:, :, i]
+            horizontal_indicies = np.where(np.any(m, axis=0))[0]
+            vertical_indicies = np.where(np.any(m, axis=1))[0]
+            if horizontal_indicies.shape[0]:
+                x1, x2 = horizontal_indicies[[0, -1]]
+                y1, y2 = vertical_indicies[[0, -1]]
+                x2 += 1
+                y2 += 1
+            else:
+                x1, x2, y1, y2 = 0, 0, 0, 0
+            boxes[i] = np.array([y1, x1, y2, x2])
+        return boxes.astype(np.int32)
+    
+    
     def mix_object(self, current_labeled_image, current_labeled_mask, cut_object_image, cut_object_mask):
         train_id_out = 254
 
@@ -219,7 +346,7 @@ class PasteCocoObjects(BaseTransform):
         mask = cut_object_mask == 254
 
         ood_mask = np.expand_dims(mask, axis=2)
-        ood_boxes = extract_bboxes(ood_mask)
+        ood_boxes = self.extract_bboxes(ood_mask)
         ood_boxes = ood_boxes[0, :]  # (y1, x1, y2, x2)
         y1, x1, y2, x2 = ood_boxes[0], ood_boxes[1], ood_boxes[2], ood_boxes[3]
         cut_object_mask = cut_object_mask[y1:y2, x1:x2]
@@ -249,72 +376,16 @@ class PasteCocoObjects(BaseTransform):
     
     def transform(self, results: dict) -> dict:
         
-        if np.random.uniform() < results['anomaly_mix_ratio']:
-            coco_gt_path = random.choice(results['anomalies'])
-            coco_img_path = coco_gt_path.replace('annotations/ood_seg_train2017','images/train2017')
-            coco_img_path = coco_img_path.replace('png','jpg')
-            coco_img = cv2.imread(coco_img_path)
-            coco_gt = cv2.imread(coco_gt_path)
+        if np.random.uniform() < self.mix_ratio:
+            coco_img, coco_gt = results['coco_data']
             img, sem_seg_gt = self.mix_object(current_labeled_image=results['img'], \
                 current_labeled_mask=results['gt_seg_map'], cut_object_image=coco_img, cut_object_mask=coco_gt)
             results['img'] = img
             results['gt_seg_map'] = sem_seg_gt
         
+        r = random.randint(0, 10000)
+        if r < 100:
+            img = cv2.cvtColor(results['img'], cv2.COLOR_BGR2RGB)
+            Image.fromarray(img).save(f'samples/{r}.jpg')
+        
         return results
-
-
-@DATASETS.register_module()
-class CityscapesWithCocoDataset(CityscapesDataset):
-    """Cityscapes dataset.
-
-    The ``img_suffix`` is fixed to '_leftImg8bit.png' and ``seg_map_suffix`` is
-    fixed to '_gtFine_labelTrainIds.png' for Cityscapes dataset.
-    """
-    METAINFO = dict(
-        classes=('road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
-                 'traffic light', 'traffic sign', 'vegetation', 'terrain',
-                 'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
-                 'motorcycle', 'bicycle', 'anomaly'),
-        palette=[[128, 64, 128], [244, 35, 232], [70, 70, 70], [102, 102, 156],
-                 [190, 153, 153], [153, 153, 153], [250, 170, 30], [220, 220, 0],
-                 [107, 142, 35], [152, 251, 152], [70, 130, 180],
-                 [220, 20, 60], [255, 0, 0], [0, 0, 142], [0, 0, 70],
-                 [0, 60, 100], [0, 80, 100], [0, 0, 230], [119, 11, 32], 
-                 [0, 255, 0]])
-    def __init__(self, 
-                 anomaly_file_path, 
-                 anomaly_mix_ratio = 0.2, 
-                 img_size = (1024, 2048), 
-                 **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.anomaly_mix_ratio = anomaly_mix_ratio
-        self.anomalies = glob.glob(anomaly_file_path)
-    
-    def get_data_info(self, idx: int) -> dict:
-        """Get annotation by index and automatically call ``full_init`` if the
-        dataset has not been fully initialized.
-
-        Args:
-            idx (int): The index of data.
-
-        Returns:
-            dict: The idx-th annotation of the dataset.
-        """
-        if self.serialize_data:
-            start_addr = 0 if idx == 0 else self.data_address[idx - 1].item()
-            end_addr = self.data_address[idx].item()
-            bytes = memoryview(
-                self.data_bytes[start_addr:end_addr])  # type: ignore
-            data_info = pickle.loads(bytes)  # type: ignore
-        else:
-            data_info = copy.deepcopy(self.data_list[idx])
-        # Some codebase needs `sample_idx` of data information. Here we convert
-        # the idx to a positive number and save it in data information.
-        if idx >= 0:
-            data_info['sample_idx'] = idx
-        else:
-            data_info['sample_idx'] = len(self) + idx
-        # data_info['anomalies'] = self.anomalies[selected_anomalies_indices]
-        data_info['anomalies'] = self.anomalies
-        data_info['anomaly_mix_ratio'] = self.anomaly_mix_ratio
-        return data_info
