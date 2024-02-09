@@ -361,13 +361,14 @@ class AnomalyMetricP2A(BaseMetric):
                 
         has_anomaly = np.array([(1 in np.unique(gt_anomaly_map)) for gt_anomaly_map in gt_anomaly_maps]).astype(np.bool_)
         
-        seg_logits = seg_logits[has_anomaly]
-        gt_anomaly_maps = gt_anomaly_maps[has_anomaly].flatten()        
+        # seg_logits = seg_logits[has_anomaly]
+        # gt_anomaly_maps = gt_anomaly_maps[has_anomaly]
         
-        pred_anomaly_maps = seg_logits[:, 1, :, :].flatten()
+        pred_anomaly_maps = seg_logits[:, 1, :, :].flatten() - seg_logits[:, 0, :, :].flatten()
         # pred_anomaly_maps = (1 - np.max(seg_logits[:, :19, :, :], axis=1)).flatten()
         # pred_anomaly_maps = seg_logits[:, 19, :, :].flatten() * (1 - np.max(seg_logits[:, :19, :, :], axis=1)).flatten()
         # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten() / np.max(seg_logits[:, :19, :, :], axis=1).flatten()
+        gt_anomaly_maps = gt_anomaly_maps.flatten()
         
         assert ((gt_anomaly_maps == 0) | (gt_anomaly_maps == 1)).all()
         

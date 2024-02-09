@@ -12,7 +12,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 19
 model = dict(
-    type='EncoderDecoderLDMP2A3',
+    type='EncoderDecoderLDMP2A2',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -33,7 +33,7 @@ model = dict(
     with_ldm=True,
     with_ldm_as_backbone=True, 
     decode_head=dict(
-        type='Mask2FormerHeadP2A3',
+        type='Mask2FormerHeadP2A2',
         in_channels=[256, 832, 1664, 3328],
         strides=[4, 8, 16, 32],
         feat_channels=256,
@@ -121,6 +121,10 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
+        loss_seg=dict(
+            type='SegmentationLoss',
+            reduction='mean',
+            loss_weight=5.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -165,33 +169,35 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
-    # dict(type='Resize', scale=(1024, 512)),
-    # dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
-    dict(type='UnifyGT', label_map={0: 0, 1: 1, 255: 0}), 
+    dict(type='Resize', scale=(1024, 512)),
+    dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
+    # dict(type='UnifyGT', label_map={0: 0, 1: 1, 255: 0}), 
     dict(type='PackSegInputs')
 ]
 
 # dataset settings
 train_dataset_type = 'CityscapesWithCocoDataset'
 train_data_root = 'data/cityscapes/'
-# test_dataset_type = 'RoadAnomalyDataset'
-# test_data_root = 'data/RoadAnomaly'
-test_dataset_type = 'FSLostAndFoundDataset'
-test_data_root = 'data/FS_LostFound'
+test_dataset_type = 'RoadAnomalyDataset'
+test_data_root = 'data/RoadAnomaly'
+# test_dataset_type = 'FSLostAndFoundDataset'
+# test_data_root = 'data/FS_LostFound'
+# test_data_root = 'data/FS_Static'
 
 train_dataloader = dict(dataset=dict(type=train_dataset_type, 
                                      coco_file_path='data/coco/',
                                      data_root=train_data_root, 
                                      pipeline=train_pipeline))
-# val_dataloader = dict(dataset=dict(type=test_dataset_type, 
-#                                      data_root=test_data_root, 
-#                                      pipeline=test_pipeline))
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
-                                     pipeline=test_pipeline, 
-                                     data_prefix=dict(
-                                            img_path='images', 
-                                            seg_map_path='labels_masks')))
+                                     pipeline=test_pipeline))
+# val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+#                                      data_root=test_data_root, 
+#                                      pipeline=test_pipeline, 
+#                                      img_suffix='.jpg',
+#                                      data_prefix=dict(
+#                                             img_path='images',
+#                                             seg_map_path='labels_masks')))
 test_dataloader = val_dataloader
 val_evaluator = dict(type='AnomalyMetricP2A')
 test_evaluator = val_evaluator
@@ -246,4 +252,4 @@ default_hooks = dict(
 auto_scale_lr = dict(enable=False, base_batch_size=16)
 
 
-load_from = 'work_dirs/mask2former_r50_sd_cityscapes_with_anomalies_instance_p2a_pretrained/iter_5000.pth'
+load_from = 'work_dirs/mask2former_r50_sd_cityscapes/iter_90000.pth'

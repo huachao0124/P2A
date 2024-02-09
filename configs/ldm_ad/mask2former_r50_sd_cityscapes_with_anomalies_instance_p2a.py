@@ -12,7 +12,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 19
 model = dict(
-    type='EncoderDecoderLDMP2A3',
+    type='EncoderDecoderLDMP2A2',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -33,7 +33,7 @@ model = dict(
     with_ldm=True,
     with_ldm_as_backbone=True, 
     decode_head=dict(
-        type='Mask2FormerHeadP2A3',
+        type='Mask2FormerHeadP2A2',
         in_channels=[256, 832, 1664, 3328],
         strides=[4, 8, 16, 32],
         feat_channels=256,
@@ -150,7 +150,7 @@ buffer_path = 'ldm/buffer'
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='PasteCocoObjects', mix_ratio=0.2), 
+    dict(type='PasteAnomalies', buffer_path=buffer_path, mix_ratio=0.5, part_instance=True), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -172,7 +172,7 @@ test_pipeline = [
 ]
 
 # dataset settings
-train_dataset_type = 'CityscapesWithCocoDataset'
+train_dataset_type = 'CityscapesWithAnomaliesDataset'
 train_data_root = 'data/cityscapes/'
 # test_dataset_type = 'RoadAnomalyDataset'
 # test_data_root = 'data/RoadAnomaly'
@@ -180,7 +180,7 @@ test_dataset_type = 'FSLostAndFoundDataset'
 test_data_root = 'data/FS_LostFound'
 
 train_dataloader = dict(dataset=dict(type=train_dataset_type, 
-                                     coco_file_path='data/coco/',
+                                    #  coco_file_path='data/coco/',
                                      data_root=train_data_root, 
                                      pipeline=train_pipeline))
 # val_dataloader = dict(dataset=dict(type=test_dataset_type, 

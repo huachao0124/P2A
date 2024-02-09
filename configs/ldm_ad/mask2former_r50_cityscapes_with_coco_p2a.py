@@ -171,24 +171,25 @@ test_pipeline = [
 # dataset settings
 train_dataset_type = 'CityscapesWithCocoDataset'
 train_data_root = 'data/cityscapes/'
-# test_dataset_type = 'RoadAnomalyDataset'
-# test_data_root = 'data/RoadAnomaly'
-test_dataset_type = 'FSLostAndFoundDataset'
-test_data_root = 'data/FS_LostFound'
+test_dataset_type = 'RoadAnomalyDataset'
+test_data_root = 'data/RoadAnomaly'
+# test_dataset_type = 'FSLostAndFoundDataset'
+# test_data_root = 'data/FS_LostFound'
+# test_data_root = 'data/FS_Static'
 
 train_dataloader = dict(dataset=dict(type=train_dataset_type, 
                                      coco_file_path='data/coco/',
                                      data_root=train_data_root, 
                                      pipeline=train_pipeline))
-# val_dataloader = dict(dataset=dict(type=test_dataset_type, 
-#                                      data_root=test_data_root, 
-#                                      pipeline=test_pipeline))
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
-                                     pipeline=test_pipeline, 
-                                     data_prefix=dict(
-                                            img_path='images', 
-                                            seg_map_path='labels_masks')))
+                                     pipeline=test_pipeline))
+# val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+#                                      data_root=test_data_root, 
+#                                      pipeline=test_pipeline, 
+#                                      data_prefix=dict(
+#                                             img_path='images', 
+#                                             seg_map_path='labels_masks')))
 test_dataloader = val_dataloader
 val_evaluator = dict(type='AnomalyMetricP2A')
 test_evaluator = val_evaluator

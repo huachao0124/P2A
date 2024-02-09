@@ -21,7 +21,7 @@ from .dataset import (CityscapesWithAnomaliesDataset,
 from .utils import FixedAssigner
 from .loop import MyIterBasedTrainLoop
 from .metric import AnomalyMetric, AnomalyMetricDoublePart, AnomalyMetricP2A, AnomalyMetricRbA
-from .loss import ContrastiveLoss, ContrastiveLossCoco
+from .loss import ContrastiveLoss, ContrastiveLossCoco, SegmentationLoss
 
 
 __all__ = ['DDIMSampler', 
@@ -43,6 +43,7 @@ __all__ = ['DDIMSampler',
            'UnifyGT', 
            'ContrastiveLoss', 
            'ContrastiveLossCoco', 
+           'SegmentationLoss', 
            'CityscapesWithCocoDataset', 
            'CocoSemSeg', 
            'PasteCocoObjects', 

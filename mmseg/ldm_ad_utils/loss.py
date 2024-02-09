@@ -111,3 +111,62 @@ class ContrastiveLossCoco(nn.Module):
         loss = self.loss_weight * loss
 
         return loss
+
+
+@MODELS.register_module()
+class SegmentationLoss(nn.Module):
+
+    def __init__(self,
+                 reduction='mean',
+                 loss_weight=1.0):
+
+        super(SegmentationLoss, self).__init__()
+        self.reduction = reduction
+        self.loss_weight = loss_weight
+
+        self.loss_fn = MODELS.build(dict(type='mmdet.CrossEntropyLoss',
+                                        use_sigmoid=False,
+                                        loss_weight=1.0,
+                                        reduction=reduction,
+                                        class_weight=[1.0, 1.0]))
+
+    def forward(self,
+                cls_scores, 
+                mask_preds,
+                batch_gt_instances,
+                batch_img_metas,
+                weight=None,
+                reduction_override=None,
+                avg_factor=None):
+        
+        assert reduction_override in (None, 'none', 'mean', 'sum')
+        reduction = (
+            reduction_override if reduction_override else self.reduction)
+
+        def get_ood_mask(gt_instances):
+            if (gt_instances.labels == 1).any():
+                return gt_instances.masks[gt_instances.labels == 1].sum(dim=0)
+            else:
+                return gt_instances.masks.new_zeros(*gt_instances.masks.shape[-2:])
+        
+        ood_mask = torch.stack([get_ood_mask(gt_instances) for gt_instances in batch_gt_instances]).squeeze(1)
+                
+        mask_preds = F.interpolate(
+            mask_preds, size=ood_mask.shape[-2:], mode='bilinear', align_corners=False)
+        cls_scores = F.softmax(cls_scores, dim=-1)[..., :-1]
+        mask_preds = mask_preds.sigmoid()
+        seg_logits = torch.einsum('bqc, bqhw->bchw', cls_scores, mask_preds)
+        if reduction == 'mean':
+            # mean of empty tensor is nan
+            # loss = (seg_logits[:, 0, :, :] * (ood_mask == 1) + seg_logits[:, 1, :, :] * (ood_mask == 0)).mean()
+            # loss = seg_logits[:, 0, :, :][ood_mask == 1].mean() + seg_logits[:, 1, :, :][ood_mask == 0].mean()
+            # loss = torch.clamp(1 - seg_logits[:, 0, :, :][ood_mask == 0], min=0.0).mean() + seg_logits[:, 1, :, :][ood_mask == 0].mean()
+            # if (ood_mask == 1).any():
+            #     loss = loss + seg_logits[:, 0, :, :][ood_mask == 1].mean() + torch.clamp(1 - seg_logits[:, 1, :, :][ood_mask == 1], min=0.0).mean()
+            seg_logits_tanh = seg_logits.tanh()
+            loss = self.loss_fn(seg_logits_tanh, ood_mask)
+        else:
+            loss = seg_logits[:, 0, :, :][ood_mask == 1].sum() + seg_logits[:, 1, :, :][ood_mask == 0].sum()
+        loss = self.loss_weight * loss
+
+        return loss
