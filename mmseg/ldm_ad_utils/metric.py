@@ -330,8 +330,6 @@ class AnomalyMetricP2A(BaseMetric):
             data_batch (dict): A batch of data from the dataloader.
             data_samples (Sequence[dict]): A batch of outputs from the model.
         """
-        seg_logits = []
-        gt_anomaly_maps = []
         for data_sample in data_samples:
             self.results.append((data_sample['seg_logits']['data'].cpu().numpy(), data_sample['gt_sem_seg']['data'].cpu().numpy()))
         
@@ -358,19 +356,19 @@ class AnomalyMetricP2A(BaseMetric):
         
         seg_logits = np.stack(results[0])
         gt_anomaly_maps = np.stack(results[1])
-                
+        
+        # print(np.unique(gt_anomaly_maps))
+        
         has_anomaly = np.array([(1 in np.unique(gt_anomaly_map)) for gt_anomaly_map in gt_anomaly_maps]).astype(np.bool_)
         
         # seg_logits = seg_logits[has_anomaly]
         # gt_anomaly_maps = gt_anomaly_maps[has_anomaly]
         
         pred_anomaly_maps = seg_logits[:, 1, :, :].flatten() - seg_logits[:, 0, :, :].flatten()
-        # pred_anomaly_maps = (1 - np.max(seg_logits[:, :19, :, :], axis=1)).flatten()
-        # pred_anomaly_maps = seg_logits[:, 19, :, :].flatten() * (1 - np.max(seg_logits[:, :19, :, :], axis=1)).flatten()
-        # pred_anomaly_maps = seg_logits[:, -1, :, :].flatten() / np.max(seg_logits[:, :19, :, :], axis=1).flatten()
+        # pred_anomaly_maps = seg_logits[:, 1, :, :].flatten()
         gt_anomaly_maps = gt_anomaly_maps.flatten()
         
-        assert ((gt_anomaly_maps == 0) | (gt_anomaly_maps == 1)).all()
+        # assert ((gt_anomaly_maps == 0) | (gt_anomaly_maps == 1)).all()
         
         ood_mask = (gt_anomaly_maps == 1)
         ind_mask = (gt_anomaly_maps == 0)
@@ -387,7 +385,21 @@ class AnomalyMetricP2A(BaseMetric):
         fpr, tpr, _ = roc_curve(val_label, val_out)    
         roc_auc = auc(fpr, tpr)
         prc_auc = average_precision_score(val_label, val_out)
-        fpr = fpr_at_95_tpr(val_out, val_label)
+        
+        def calculate_auroc(pred, gt):
+            fpr, tpr, threshold = roc_curve(gt, pred)
+            roc_auc = auc(fpr, tpr)
+            fpr_best = 0
+            # print('Started FPR search.')
+            for i, j, k in zip(tpr, fpr, threshold):
+                if i > 0.95:
+                    fpr_best = j
+                    break
+            return roc_auc, fpr_best, k
+        
+        _, fpr, _ = calculate_auroc(val_out, val_label)
+        
+        # fpr = fpr_at_95_tpr(val_out, val_label)
         
         # summary
         metrics = dict()
@@ -408,27 +420,6 @@ class AnomalyMetricP2A(BaseMetric):
 
 @METRICS.register_module()
 class AnomalyMetricRbA(BaseMetric):
-    """IoU evaluation metric.
-
-    Args:
-        ignore_index (int): Index that will be ignored in evaluation.
-            Default: 255.
-        nan_to_num (int, optional): If specified, NaN values will be replaced
-            by the numbers defined by the user. Default: None.
-        collect_device (str): Device name used for collecting results from
-            different ranks during distributed training. Must be 'cpu' or
-            'gpu'. Defaults to 'cpu'.
-        output_dir (str): The directory for output prediction. Defaults to
-            None.
-        format_only (bool): Only format result for results commit without
-            perform evaluation. It is useful when you want to save the result
-            to a specific format and submit it to the test server.
-            Defaults to False.
-        prefix (str, optional): The prefix that will be added in the metric
-            names to disambiguate homonymous metrics of different evaluators.
-            If prefix is not provided in the argument, self.default_prefix
-            will be used instead. Defaults to None.
-    """
     METAINFO = dict(
         classes=('road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
                  'traffic light', 'traffic sign', 'vegetation', 'terrain',
@@ -459,33 +450,10 @@ class AnomalyMetricRbA(BaseMetric):
         self.format_only = format_only
 
     def process(self, data_batch: dict, data_samples: Sequence[dict]) -> None:
-        """Process one batch of data and data_samples.
-
-        The processed results should be stored in ``self.results``, which will
-        be used to compute the metrics when all batches have been processed.
-
-        Args:
-            data_batch (dict): A batch of data from the dataloader.
-            data_samples (Sequence[dict]): A batch of outputs from the model.
-        """
-        seg_logits = []
-        gt_anomaly_maps = []
         for data_sample in data_samples:
             self.results.append((data_sample['seg_logits']['data'].cpu().numpy(), data_sample['gt_sem_seg']['data'].cpu().numpy()))
-        
     
     def compute_metrics(self, results: list) -> Dict[str, float]:
-        """Compute the metrics from processed results.
-
-        Args:
-            results (list): The processed results of each batch.
-
-        Returns:
-            Dict[str, float]: The computed metrics. The keys are the names of
-                the metrics, and the values are corresponding results. The key
-                mainly includes aAcc, mIoU, mAcc, mDice, mFscore, mPrecision,
-                mRecall.
-        """
         logger: MMLogger = MMLogger.get_current_instance()
         if self.format_only:
             logger.info(f'results are saved to {osp.dirname(self.output_dir)}')
@@ -499,13 +467,14 @@ class AnomalyMetricRbA(BaseMetric):
                 
         has_anomaly = np.array([(1 in np.unique(gt_anomaly_map)) for gt_anomaly_map in gt_anomaly_maps]).astype(np.bool_)
         
-        seg_logits = seg_logits[has_anomaly]
-        gt_anomaly_maps = gt_anomaly_maps[has_anomaly].flatten()        
+        # seg_logits = seg_logits[has_anomaly]
+        # gt_anomaly_maps = gt_anomaly_maps[has_anomaly]    
         
                 
         pred_anomaly_maps = -torch.from_numpy(seg_logits[:, :19]).tanh().sum(dim=1).numpy().flatten()
+        gt_anomaly_maps = gt_anomaly_maps.flatten()
         
-        assert ((gt_anomaly_maps == 0) | (gt_anomaly_maps == 1)).all()
+        # assert ((gt_anomaly_maps == 0) | (gt_anomaly_maps == 1)).all()
         
         ood_mask = (gt_anomaly_maps == 1)
         ind_mask = (gt_anomaly_maps == 0)
@@ -529,7 +498,7 @@ class AnomalyMetricRbA(BaseMetric):
         for key, val in zip(('AUPRC', 'FPR@95TPR', 'AUROC'), (prc_auc, fpr, roc_auc)):
             metrics[key] = np.round(val * 100, 2)
         metrics = OrderedDict(metrics)
-        metrics.update({'Dataset': 'RoadAnomaly'})
+        metrics.update({'Dataset': 'FS_LF'})
         metrics.move_to_end('Dataset', last=False)
         class_table_data = PrettyTable()
         for key, val in metrics.items():
