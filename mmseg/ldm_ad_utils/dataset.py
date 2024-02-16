@@ -5,7 +5,11 @@ from mmseg.datasets.cityscapes import CityscapesDataset
 import mmcv
 from mmcv.transforms.base import BaseTransform
 import mmengine.fileio as fileio
-from mmengine.dataset.base_dataset import Compose
+from mmengine.fileio import list_from_file
+from mmengine.config import Config
+from mmengine.logging import print_log
+from mmengine.dataset import BaseDataset, Compose
+
 
 import random
 import os
@@ -14,6 +18,8 @@ import pickle
 import copy
 import cv2
 import numpy as np
+import logging
+from collections.abc import Mapping
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 from torchvision import transforms
 from torch.utils.data import Dataset
@@ -42,7 +48,7 @@ class CityscapesWithAnomaliesDataset(CityscapesDataset):
                  [0, 255, 0]])
     def __init__(self,
                  num_anomalies = 100, 
-                 num_classes = 20, 
+                 num_classes = 19, 
                  img_size = (1024, 2048), 
                  **kwargs) -> None:
         self.num_anomalies = num_anomalies
@@ -120,16 +126,15 @@ class PasteAnomalies(BaseTransform):
             # angle = np.random.uniform(min(*self.degree), max(*self.degree))
             # image = mmcv.imrotate(image, angle=angle)
             # mask = mmcv.imrotate(mask, angle=angle)
+            img_h, img_w = results['img'].shape[:2]
             
-            long_side = random.randint(64, 2048 // min(2 ** len(results['anomalies']), 16))
+            long_side = random.randint(32, max(img_h, img_w) // min(2 ** len(results['anomalies']), 16))
+            # long_side = random.randint(16, 128)
             h, w = image.shape[:2]
             new_h, new_w = int(h / max(h, w) * long_side), int(w / max(h, w) * long_side)
-            
             resize_image = cv2.resize(image, (new_w, new_h))
             resize_mask = cv2.resize(mask, (new_w, new_h))
-            
-            img_h, img_w = results['img'].shape[:2]
-                        
+                 
             x = random.randint(0, img_w - new_w)
             try:
                 y = random.randint(448, img_h - new_h)
@@ -137,9 +142,9 @@ class PasteAnomalies(BaseTransform):
                 y = random.randint(0, img_h - new_h)
             results['img'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = resize_image[resize_mask > 0]
             if not self.part_instance:
-                results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = 19
+                results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = results['num_classes']
             else:
-                results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = 19 + idx
+                results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = results['num_classes'] + idx
         
         r = random.randint(0, 100000)
         if r < 100:
@@ -182,7 +187,7 @@ class RoadAnomalyDataset(Dataset):
 class FSLostAndFoundDataset(BaseSegDataset):
     METAINFO = dict(
     classes=('normal', 'anomaly'),
-    palette=[[0, 0, 0], [255, 0, 0]])
+    palette=[[128, 64, 128], [244, 35, 232]])
     
     def __init__(self,
                  img_suffix='.png',
@@ -194,7 +199,7 @@ class FSLostAndFoundDataset(BaseSegDataset):
 
 @TRANSFORMS.register_module()
 class UnifyGT(BaseTransform):
-    def __init__(self, label_map={0: 0, 1: 1, 255: 0}):
+    def __init__(self, label_map={0: 0, 1: 1}):
         super().__init__()
         self.label_map = label_map
     
@@ -389,3 +394,109 @@ class PasteCocoObjects(BaseTransform):
             Image.fromarray(img).save(f'samples/{r}.jpg')
         
         return results
+
+
+@DATASETS.register_module()
+class StreetHazardsDataset(BaseDataset):
+    METAINFO = dict(
+    classes=('unlabeled', 'building', 'fence', 'other', 'pedestrian', 
+             'pole', 'road line', 'road', 'sidewalk', 'vegetation', 
+             'car', 'wall', 'traffic sign'),
+    palette=[[0, 0, 0], [70, 70, 70], [190, 153, 153], [250, 170, 160], [220, 20, 60], 
+             [153, 153, 153], [157, 234, 50], [128, 64, 128], [244, 35, 232], [107, 142, 35], 
+             [0, 0, 142], [102, 102, 156], [220, 220, 0]])
+    def __init__(self,
+                 data_root: str = None, 
+                 data_info: str = None, 
+                 num_anomalies: int = 100, 
+                 **kwargs) -> None:
+        super().__init__(data_root=data_root, serialize_data=False, lazy_init=True, **kwargs)
+        with open(os.path.join(data_root, data_info), 'r') as f:
+            self.data_list = eval(f.read())
+        self.num_anomalies = num_anomalies
+
+    def full_init(self):
+        # pass
+        if self._fully_initialized:
+            return
+        if self._indices is not None:
+            self.data_list = self._get_unserialized_subset(self._indices)
+
+        # serialize data_list
+        if self.serialize_data:
+            self.data_bytes, self.data_address = self._serialize_data()
+
+        self._fully_initialized = True
+    
+    def __len__(self):
+        return len(self.data_list)
+    
+    def get_data_info(self, idx: int) -> dict:
+        if self.serialize_data:
+            start_addr = 0 if idx == 0 else self.data_address[idx - 1].item()
+            end_addr = self.data_address[idx].item()
+            bytes = memoryview(
+                self.data_bytes[start_addr:end_addr])  # type: ignore
+            data_info = pickle.loads(bytes)  # type: ignore
+        else:
+            data_info = copy.deepcopy(self.data_list[idx])
+        # Some codebase needs `sample_idx` of data information. Here we convert
+        # the idx to a positive number and save it in data information.
+        if idx >= 0:
+            data_info['sample_idx'] = idx
+        else:
+            data_info['sample_idx'] = len(self) + idx
+        
+        data_info['img_path'] = os.path.join(self.data_root, self.data_list[idx]['fpath_img'])
+        data_info['reduce_zero_label'] = True
+        data_info['seg_map_path'] = os.path.join(self.data_root, self.data_list[idx]['fpath_segm'])
+        data_info['seg_fields'] = []
+        data_info['num_anomalies'] = self.num_anomalies
+        data_info['num_classes'] = 13
+        
+
+        return data_info
+
+    def prepare_data(self, idx) -> Any:
+        data_info = self.get_data_info(idx)
+        return self.pipeline(data_info)
+
+
+@DATASETS.register_module()
+class AnomalyTrackDataset(BaseDataset):
+    METAINFO = dict(
+    classes=('not anomaly', 'anomaly'),
+    palette=[[128, 64, 128], [244, 35, 232]])
+    def __init__(self,
+                 data_root: str = None, 
+                 data_info: str = None, 
+                 **kwargs) -> None:
+        super().__init__(lazy_init=True, serialize_data=False, data_root=data_root, **kwargs)
+        self.img_list = glob.glob(os.path.join(data_root, 'images', '*.jpg'))
+
+    def full_init(self):
+        pass
+    
+    def __len__(self):
+        return len(self.img_list)
+    
+    def get_data_info(self, idx: int) -> dict:
+        if idx >= 0:
+            data_info['sample_idx'] = idx
+        else:
+            data_info['sample_idx'] = len(self) + idx
+        
+        data_info = {'img_path': self.img_list[idx]}
+        data_info['reduce_zero_label'] = False
+        data_info['seg_map_path'] = self.img_list[idx].replace('images', 'labels_masks').replace('.jpg', '_labels_semantic.png')
+        if not os.path.exists(data_info['seg_map_path']):
+            img = cv2.imread(data_info['img_path'])
+            cv2.imwrite(data_info['seg_map_path'], np.zeros_like(img))
+        data_info['seg_fields'] = []
+
+        return data_info
+
+    def prepare_data(self, idx) -> Any:
+        data_info = self.get_data_info(idx)
+        return self.pipeline(data_info)
+
