@@ -52,7 +52,8 @@ class DDIMSampler(BaseModule):
         super().__init__()
         self.model = create_model(model)
         self.model.load_state_dict(load_state_dict(ldm_pretrain, location='cpu'), strict=False)
-        self.model.load_state_dict(load_state_dict(control_pretrain, location='cpu'), strict=False)
+        if control_pretrain is not None:
+            self.model.load_state_dict(load_state_dict(control_pretrain, location='cpu'), strict=False)
         self.ddpm_num_timesteps = self.model.num_timesteps
         self.schedule = schedule
         self.out_indices = out_indices
