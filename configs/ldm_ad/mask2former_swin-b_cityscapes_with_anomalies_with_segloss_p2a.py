@@ -36,9 +36,10 @@ model = dict(
         init_cfg=dict(type='Pretrained', checkpoint=pretrained)),
     ldm=dict(
         type='DDIMSampler', 
-        model='configs/ldm_ad/cldm_v15.yaml', 
+        model='configs/ldm_ad/sd_v15.yaml', 
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
-        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
+        # control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
+        control_pretrain=None
     ), 
     with_ldm=True,
     with_ldm_as_backbone=False, 
@@ -194,7 +195,9 @@ test_dataset_type = 'FSLostAndFoundDataset'
 test_data_root = 'data/FS_LostFound'
 # test_data_root = 'data/FS_Static'
 
-train_dataloader = dict(dataset=dict(type=train_dataset_type, 
+train_dataloader = dict(batch_size=4,
+                        num_workers=4,
+                        dataset=dict(type=train_dataset_type, 
                                      data_root=train_data_root, 
                                      num_anomalies=1000, 
                                      num_classes=num_classes, 
@@ -255,7 +258,7 @@ default_hooks = dict(
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=1))
 
-custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
+# custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically

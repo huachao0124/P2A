@@ -10,10 +10,9 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size,
     test_cfg=dict(size_divisor=32))
-num_classes = 19
+num_classes = 20
 model = dict(
-    type='EncoderDecoderLDMP2A2',
-    # type='EncoderDecoderLDMP2AReshape',
+    type='EncoderDecoderLDM',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -28,15 +27,13 @@ model = dict(
     ldm=dict(
         type='DDIMSampler', 
         model='configs/ldm_ad/cldm_v15.yaml', 
-        # model='configs/ldm_ad/sd_v15.yaml', 
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
-        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth', 
-        # control_pretrain=None
+        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
     with_ldm=True,
-    with_ldm_as_backbone=True, 
+    with_ldm_as_backbone=True,
     decode_head=dict(
-        type='Mask2FormerHeadP2A2',
+        type='Mask2FormerHeadP2A4',
         in_channels=[256, 832, 1664, 3328],
         strides=[4, 8, 16, 32],
         feat_channels=256,
@@ -109,7 +106,7 @@ model = dict(
             use_sigmoid=False,
             loss_weight=2.0,
             reduction='mean',
-            class_weight=[1.0, 1.0, 0.1]),
+            class_weight=[1.0] * num_classes + [0.1]),
         loss_mask=dict(
             type='mmdet.CrossEntropyLoss',
             use_sigmoid=True,
@@ -123,10 +120,6 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_seg=dict(
-            type='SegmentationLoss',
-            reduction='mean',
-            loss_weight=10.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -222,16 +215,6 @@ optim_wrapper = dict(
             'level_embed': embed_multi,
         },
         norm_decay_mult=0.0))
-# learning policy
-# param_scheduler = [
-#     dict(
-#         type='PolyLR',
-#         eta_min=0,
-#         power=0.9,
-#         begin=0,
-#         end=90000,
-#         by_epoch=False)
-# ]
 
 # training schedule for 90k
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000, val_interval=1000)
@@ -254,9 +237,4 @@ custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 #   - `enable` means enable scaling LR automatically
 #       or not by default.
 #   - `base_batch_size` = (8 GPUs) x (2 samples per GPU).
-auto_scale_lr = dict(enable=True, base_batch_size=16)
-
-
-load_from = 'work_dirs/mask2former_r50_sd_cityscapes/iter_90000.pth'
-
-# find_unused_parameters = True
+auto_scale_lr = dict(enable=False, base_batch_size=16)

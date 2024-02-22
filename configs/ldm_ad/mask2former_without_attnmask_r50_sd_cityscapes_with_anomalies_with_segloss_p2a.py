@@ -122,10 +122,10 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_seg=dict(
-            type='SegmentationLoss',
-            reduction='mean',
-            loss_weight=5.0),
+        # loss_seg=dict(
+        #     type='SegmentationLoss',
+        #     reduction='mean',
+        #     loss_weight=5.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -231,7 +231,7 @@ param_scheduler = [
 ]
 
 # training schedule for 90k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=30000, val_interval=1000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000, val_interval=1000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(

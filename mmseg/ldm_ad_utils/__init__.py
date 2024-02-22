@@ -11,7 +11,8 @@ from .model import (EncoderDecoderLDM,
                     Mask2FormerHeadP2A2,
                     Mask2FormerHeadP2A3, 
                     Mask2FormerHeadRbA, 
-                    Mask2FormerHeadWithoutMask)
+                    Mask2FormerHeadWithoutMask, 
+                    Mask2FormerHeadP2A4)
 from .hook import GeneratePseudoAnomalyHook, TextInitQueriesHook, SegVisualizationWithResizeHook
 from .dataset import (CityscapesWithAnomaliesDataset, 
                       PasteAnomalies, 
@@ -25,7 +26,7 @@ from .dataset import (CityscapesWithAnomaliesDataset,
                       AnomalyTrackDataset)
 from .utils import FixedAssigner
 from .loop import MyIterBasedTrainLoop
-from .metric import AnomalyMetric, AnomalyMetricDoublePart, AnomalyMetricP2A, AnomalyMetricRbA
+from .metric import AnomalyMetric, AnomalyMetricDoublePart, AnomalyMetricP2A, AnomalyMetricRbA, AnomalyMetricP2A4
 from .loss import ContrastiveLoss, ContrastiveLossCoco, SegmentationLoss
 
 
@@ -42,6 +43,7 @@ __all__ = ['DDIMSampler',
            'Mask2FormerHeadP2A3',
            'Mask2FormerHeadRbA', 
            'Mask2FormerHeadWithoutMask',
+           'Mask2FormerHeadP2A4',
            'TextInitQueriesHook', 
            'GeneratePseudoAnomalyHook', 
            'SegVisualizationWithResizeHook', 
@@ -64,4 +66,5 @@ __all__ = ['DDIMSampler',
            'DoubleMask2FormerHead', 
            'AnomalyMetricDoublePart',
            'AnomalyMetricP2A', 
-           'AnomalyMetricRbA']
+           'AnomalyMetricRbA', 
+           'AnomalyMetricP2A4']
