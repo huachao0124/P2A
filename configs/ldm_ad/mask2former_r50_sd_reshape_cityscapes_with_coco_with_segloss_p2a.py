@@ -12,7 +12,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 num_classes = 19
 model = dict(
-    type='EncoderDecoderLDMP2A2',
+    type='EncoderDecoderLDMP2A2Reshape',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -124,7 +124,7 @@ model = dict(
         loss_seg=dict(
             type='SegmentationLoss',
             reduction='mean',
-            loss_weight=5.0),
+            loss_weight=1.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -169,18 +169,18 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
-    dict(type='Resize', scale=(1024, 512)),
-    dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
+    # dict(type='Resize', scale=(1024, 512)),
+    # dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
     dict(type='PackSegInputs')
 ]
 
 # dataset settings
 train_dataset_type = 'CityscapesWithCocoDataset'
 train_data_root = 'data/cityscapes/'
-test_dataset_type = 'RoadAnomalyDataset'
-test_data_root = 'data/RoadAnomaly'
-# test_dataset_type = 'FSLostAndFoundDataset'
-# test_data_root = 'data/FS_LostFound'
+# test_dataset_type = 'RoadAnomalyDataset'
+# test_data_root = 'data/RoadAnomaly'
+test_dataset_type = 'FSLostAndFoundDataset'
+test_data_root = 'data/FS_LostFound'
 # test_data_root = 'data/FS_Static'
 
 train_dataloader = dict(batch_size=4,
@@ -192,13 +192,13 @@ train_dataloader = dict(batch_size=4,
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
                                      pipeline=test_pipeline))
-# val_dataloader = dict(dataset=dict(type=test_dataset_type, 
-#                                      data_root=test_data_root, 
-#                                      pipeline=test_pipeline, 
-#                                      img_suffix='.jpg',
-#                                      data_prefix=dict(
-#                                             img_path='images',
-#                                             seg_map_path='labels_masks')))
+val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+                                     data_root=test_data_root, 
+                                     pipeline=test_pipeline, 
+                                    #  img_suffix='.jpg',
+                                     data_prefix=dict(
+                                            img_path='images',
+                                            seg_map_path='labels_masks')))
 test_dataloader = val_dataloader
 val_evaluator = dict(type='AnomalyMetricP2A')
 test_evaluator = val_evaluator
@@ -249,7 +249,7 @@ default_hooks = dict(
 #   - `enable` means enable scaling LR automatically
 #       or not by default.
 #   - `base_batch_size` = (8 GPUs) x (2 samples per GPU).
-auto_scale_lr = dict(enable=False, base_batch_size=16)
+auto_scale_lr = dict(enable=True, base_batch_size=16)
 
 
 load_from = 'work_dirs/mask2former_r50_sd_cityscapes/iter_90000.pth'

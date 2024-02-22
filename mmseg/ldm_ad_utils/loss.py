@@ -165,9 +165,9 @@ class SegmentationLoss(nn.Module):
             loss = torch.pow(torch.clamp(pred_anomaly_maps[ood_mask == 0] - 1, min=0.0), 2).mean()
             if (ood_mask == 1).any():
                 loss = loss + torch.pow(torch.clamp(2 - pred_anomaly_maps[ood_mask == 1], min=0.0), 2).mean()
-            # loss = torch.pow(torch.clamp(1 - seg_logits[:, 0, :, :][ood_mask == 0], min=0.0), 2).mean() + torch.pow(seg_logits[:, 1, :, :][ood_mask == 0], 2).mean()
+            # loss = torch.pow(torch.clamp(2 - seg_logits[:, 0, :, :][ood_mask == 0], min=0.0), 2).mean() + torch.pow(seg_logits[:, 1, :, :][ood_mask == 0], 2).mean()
             # if (ood_mask == 1).any():
-            #     loss = loss + torch.pow(seg_logits[:, 0, :, :][ood_mask == 1], 2).mean() + torch.pow(torch.clamp(1 - seg_logits[:, 1, :, :][ood_mask == 1], min=0.0), 2).mean()
+            #     loss = loss + torch.pow(seg_logits[:, 0, :, :][ood_mask == 1], 2).mean() + torch.pow(torch.clamp(4 - seg_logits[:, 1, :, :][ood_mask == 1], min=0.0), 2).mean()
             # seg_logits_tanh = seg_logits.tanh()
             # loss = self.loss_fn(seg_logits_tanh, ood_mask)
         else:

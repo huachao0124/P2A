@@ -386,20 +386,7 @@ class AnomalyMetricP2A(BaseMetric):
         roc_auc = auc(fpr, tpr)
         prc_auc = average_precision_score(val_label, val_out)
         
-        def calculate_auroc(pred, gt):
-            fpr, tpr, threshold = roc_curve(gt, pred)
-            roc_auc = auc(fpr, tpr)
-            fpr_best = 0
-            # print('Started FPR search.')
-            for i, j, k in zip(tpr, fpr, threshold):
-                if i > 0.95:
-                    fpr_best = j
-                    break
-            return roc_auc, fpr_best, k
-        
-        _, fpr, _ = calculate_auroc(val_out, val_label)
-        
-        # fpr = fpr_at_95_tpr(val_out, val_label)
+        fpr = fpr_at_95_tpr(val_out, val_label)
         
         # summary
         metrics = dict()

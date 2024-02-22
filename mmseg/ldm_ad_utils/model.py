@@ -30,7 +30,7 @@ from mmengine.structures import PixelData
 from torch import Tensor
 
 from mmseg.models.utils import resize
-
+from einops import rearrange
 
 @MODELS.register_module()
 class EncoderDecoderLDM(EncoderDecoder):
@@ -174,7 +174,41 @@ class EncoderDecoderLDM(EncoderDecoder):
             })
 
         return data_samples
-    
+
+
+@MODELS.register_module()
+class EncoderDecoderLDMReshape(EncoderDecoderLDM):
+    def extract_feat(self, inputs: Tensor) -> List[Tensor]:
+        if self.with_ldm_as_backbone:
+            """Extract features from images."""
+            r50_features = self.backbone(inputs)
+            
+            B, C, H, W = inputs.shape
+            nH, nW = H // 512, W // 512
+            inputs = rearrange(inputs, 'B C (nH H) (nW W) -> (B nH nW) C H W', nH=nH, nW=nW, H=512, W=512)
+            encoder_posterior = self.ldm.model.encode_first_stage(inputs)
+            z = self.ldm.model.get_first_stage_encoding(encoder_posterior).detach()
+            t = torch.full((z.shape[0], ), 50, device=inputs.device, dtype=torch.long)
+            cond = {"c_concat": None, "c_crossattn": [self.ldm.model.get_learned_conditioning([""] * z.shape[0])]}
+            all_sd_features = self.ldm.model.model.diffusion_model.forward_features(z, t, context=cond["c_crossattn"])
+            out_indices = (11, 7, 4)
+            sd_features = []
+            for idx in out_indices:
+                sd_features.append(rearrange(all_sd_features[idx], '(B nH nW) C H W -> B C (nH H) (nW W)', nH=nH, nW=nW))
+            
+            out_features = [r50_features[0]]
+            for layer in range(1, 4):
+                out_features.append(torch.cat((r50_features[layer], sd_features[layer - 1]), dim=1))
+            
+            if self.with_neck:
+                out_features = self.neck(out_features)
+            
+            return out_features
+        else:
+            x = self.backbone(inputs)
+            if self.with_neck:
+                x = self.neck(x)
+            return x
 
 @MODELS.register_module()
 class EncoderDecoderLDMDoublePart(EncoderDecoderLDM):
@@ -2177,7 +2211,7 @@ class EncoderDecoderLDMP2A2(EncoderDecoder):
             sd_features = []
             for idx in out_indices:
                 sd_features.append(all_sd_features[idx])
-            
+
             out_features = [r50_features[0]]
             for layer in range(1, 4):
                 out_features.append(torch.cat((r50_features[layer], sd_features[layer - 1]), dim=1))
@@ -2268,6 +2302,74 @@ class EncoderDecoderLDMP2A2(EncoderDecoder):
             })
 
         return data_samples
+
+
+@MODELS.register_module()
+class EncoderDecoderLDMP2A2Reshape(EncoderDecoderLDMP2A2):    
+    def extract_feat(self, inputs: Tensor) -> List[Tensor]:
+        if self.with_ldm_as_backbone:
+            """Extract features from images."""
+            r50_features = self.backbone(inputs)
+            
+            B, C, H, W = inputs.shape
+            nH, nW = H // 512, W // 512
+            inputs = rearrange(inputs, 'B C (nH H) (nW W) -> (B nH nW) C H W', nH=nH, nW=nW, H=512, W=512)
+            encoder_posterior = self.ldm.model.encode_first_stage(inputs)
+            z = self.ldm.model.get_first_stage_encoding(encoder_posterior).detach()
+            t = torch.full((z.shape[0], ), 50, device=inputs.device, dtype=torch.long)
+            cond = {"c_concat": None, "c_crossattn": [self.ldm.model.get_learned_conditioning([""] * z.shape[0])]}
+            all_sd_features = self.ldm.model.model.diffusion_model.forward_features(z, t, context=cond["c_crossattn"])
+            out_indices = (11, 7, 4)
+            sd_features = []
+            for idx in out_indices:
+                sd_features.append(rearrange(all_sd_features[idx], '(B nH nW) C H W -> B C (nH H) (nW W)', nH=nH, nW=nW))
+            
+            out_features = [r50_features[0]]
+            for layer in range(1, 4):
+                out_features.append(torch.cat((r50_features[layer], sd_features[layer - 1]), dim=1))
+            
+            if self.with_neck:
+                out_features = self.neck(out_features)
+            
+            return out_features
+        else:
+            x = self.backbone(inputs)
+            if self.with_neck:
+                x = self.neck(x)
+            return x
+
+
+@MODELS.register_module()
+class EncoderDecoderLDMP2AD4(EncoderDecoderLDMP2A2):
+    def extract_feat(self, inputs: Tensor) -> List[Tensor]:
+        if self.with_ldm_as_backbone:
+            """Extract features from images."""
+            backbone_features = self.backbone(inputs)
+            
+            encoder_posterior = self.ldm.model.encode_first_stage(inputs)
+            z = self.ldm.model.get_first_stage_encoding(encoder_posterior).detach()
+            t = torch.full((z.shape[0], ), 50, device=inputs.device, dtype=torch.long)
+            cond = {"c_concat": None, "c_crossattn": [self.ldm.model.get_learned_conditioning([""] * z.shape[0])]}
+            all_sd_features = self.ldm.model.model.diffusion_model.forward_features(z, t, context=cond["c_crossattn"])
+            out_indices = (11, 7, 4)
+            sd_features = []
+            for idx in out_indices:
+                sd_features.append(all_sd_features[idx])
+            
+            out_features = [backbone_features[0]]
+            for layer in range(1, 4):
+                out_features.append(sd_features[layer - 1])
+            
+            if self.with_neck:
+                out_features = self.neck(out_features)
+            
+            return out_features
+        else:
+            x = self.backbone(inputs)
+            if self.with_neck:
+                x = self.neck(x)
+            return x
+
 
 # 分3类，正常，异常，和void
 @MODELS.register_module()
@@ -2370,9 +2472,16 @@ class Mask2FormerHeadP2A2(Mask2FormerHeadP2A):
             mask_pred_results, size=size, mode='bilinear', align_corners=False)
         # modify
         cls_score = F.softmax(mask_cls_results, dim=-1)[..., :-1]
-        # cls_score = F.softmax(mask_cls_results, dim=-1)
         mask_pred = mask_pred_results.sigmoid()
         seg_logits = torch.einsum('bqc, bqhw->bchw', cls_score, mask_pred)
+        # B, Q, H, W = mask_pred.shape
+        # weight_0 = cls_score[:, :, 0]
+        # weight_1 = cls_score[:, :, 1]
+        # mask_0 = (weight_0 > weight_1).float()
+        # mask_1 = (weight_0 < weight_1).float()
+        # seg_logits_0 = ((weight_0.unsqueeze(2).unsqueeze(2) * mask_pred) * mask_0.unsqueeze(2).unsqueeze(2)).sum(dim=1)
+        # seg_logits_1 = ((weight_1.unsqueeze(2).unsqueeze(2) * mask_pred) * mask_1.unsqueeze(2).unsqueeze(2)).sum(dim=1)        
+        # seg_logits = torch.cat((seg_logits_0.unsqueeze(1), seg_logits_1.unsqueeze(1)), dim=1)
         return seg_logits
     
     def _get_targets_single(self, cls_score: Tensor, mask_pred: Tensor,
@@ -3489,4 +3598,137 @@ class Mask2FormerHeadRbA(Mask2FormerHead):
         
         return loss_cls, loss_mask, loss_dice, loss_rba
     
+
+@MODELS.register_module()
+class EncoderDecoderSwinD4SD(EncoderDecoder):
+    def __init__(self,
+                 backbone: ConfigType,
+                 ldm: ConfigType, 
+                 decode_head: ConfigType,
+                 with_ldm: bool = False, 
+                 with_ldm_as_backbone: bool = False, 
+                 neck: OptConfigType = None,
+                 auxiliary_head: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 pretrained: Optional[str] = None,
+                 init_cfg: OptMultiConfig = None):
+        super().__init__(
+                 backbone,
+                 decode_head,
+                 neck,
+                 auxiliary_head,
+                 train_cfg,
+                 test_cfg,
+                 data_preprocessor,
+                 pretrained,
+                 init_cfg)
+        
+        if with_ldm:
+            self.ldm = MODELS.build(ldm)
+            self.freeze_ldm()
+            
+        self.with_ldm_as_backbone = with_ldm_as_backbone
     
+    def freeze_ldm(self):
+        for m in self.ldm.parameters():
+            m.requires_grad = False
+    
+    
+    def extract_feat(self, inputs: Tensor) -> List[Tensor]:
+        if self.with_ldm_as_backbone:
+            """Extract features from images."""
+            backbone_features = self.backbone(inputs)
+            
+            encoder_posterior = self.ldm.model.encode_first_stage(inputs)
+            z = self.ldm.model.get_first_stage_encoding(encoder_posterior).detach()
+            t = torch.full((z.shape[0], ), 50, device=inputs.device, dtype=torch.long)
+            cond = {"c_concat": None, "c_crossattn": [self.ldm.model.get_learned_conditioning([""] * z.shape[0])]}
+            all_sd_features = self.ldm.model.model.diffusion_model.forward_features(z, t, context=cond["c_crossattn"])
+            out_indices = (11, 7, 4)
+            sd_features = []
+            for idx in out_indices:
+                sd_features.append(all_sd_features[idx])
+            
+            out_features = [backbone_features[0]]
+            for layer in range(1, 4):
+                out_features.append(sd_features[layer - 1])
+            
+            if self.with_neck:
+                out_features = self.neck(out_features)
+            
+            return out_features
+        else:
+            x = self.backbone(inputs)
+            if self.with_neck:
+                x = self.neck(x)
+            return x
+    
+    
+    def postprocess_result(self,
+                           seg_logits: Tensor,
+                           data_samples: OptSampleList = None) -> SampleList:
+        batch_size, C, H, W = seg_logits.shape
+
+        if data_samples is None:
+            data_samples = [SegDataSample() for _ in range(batch_size)]
+            only_prediction = True
+        else:
+            only_prediction = False
+
+        for i in range(batch_size):
+            if not only_prediction:
+                img_meta = data_samples[i].metainfo
+                # remove padding area
+                if 'img_padding_size' not in img_meta:
+                    padding_size = img_meta.get('padding_size', [0] * 4)
+                else:
+                    padding_size = img_meta['img_padding_size']
+                padding_left, padding_right, padding_top, padding_bottom =\
+                    padding_size
+                # i_seg_logits shape is 1, C, H, W after remove padding
+                i_seg_logits = seg_logits[i:i + 1, :,
+                                          padding_top:H - padding_bottom,
+                                          padding_left:W - padding_right]
+
+                flip = img_meta.get('flip', None)
+                if flip:
+                    flip_direction = img_meta.get('flip_direction', None)
+                    assert flip_direction in ['horizontal', 'vertical']
+                    if flip_direction == 'horizontal':
+                        i_seg_logits = i_seg_logits.flip(dims=(3, ))
+                    else:
+                        i_seg_logits = i_seg_logits.flip(dims=(2, ))
+
+                # # resize as original shape
+                # i_seg_logits = resize(
+                #     i_seg_logits,
+                #     size=img_meta['ori_shape'],
+                #     mode='bilinear',
+                #     align_corners=self.align_corners,
+                #     warning=False).squeeze(0)
+                i_seg_logits = i_seg_logits.squeeze(0)
+            else:
+                i_seg_logits = seg_logits[i]
+
+            if C > 1:
+                i_seg_pred = i_seg_logits.argmax(dim=0, keepdim=True)
+            else:
+                i_seg_logits = i_seg_logits.sigmoid()
+                i_seg_pred = (i_seg_logits >
+                              self.decode_head.threshold).to(i_seg_logits)
+            data_samples[i].set_data({
+                'seg_logits':
+                PixelData(**{'data': i_seg_logits}),
+                'pred_sem_seg':
+                PixelData(**{'data': i_seg_pred})
+            })
+
+        return data_samples
+
+
+
+
+
+
