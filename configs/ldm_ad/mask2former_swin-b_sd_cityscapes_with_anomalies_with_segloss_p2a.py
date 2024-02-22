@@ -10,34 +10,41 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size,
     test_cfg=dict(size_divisor=32))
+pretrained = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/swin/swin_base_patch4_window12_384_22k_20220317-e5c09f74.pth'  # noqa
+depths = [2, 2, 18, 2]
 num_classes = 19
 model = dict(
     type='EncoderDecoderLDMP2A2',
-    # type='EncoderDecoderLDMP2AReshape',
     data_preprocessor=data_preprocessor,
     backbone=dict(
-        type='ResNet',
-        depth=50,
-        deep_stem=False,
-        num_stages=4,
+        type='SwinTransformer',
+        pretrain_img_size=384,
+        embed_dims=128,
+        depths=depths,
+        num_heads=[4, 8, 16, 32],
+        window_size=12,
+        mlp_ratio=4,
+        qkv_bias=True,
+        qk_scale=None,
+        drop_rate=0.,
+        attn_drop_rate=0.,
+        drop_path_rate=0.3,
+        patch_norm=True,
         out_indices=(0, 1, 2, 3),
+        with_cp=False,
         frozen_stages=-1,
-        norm_cfg=dict(type='SyncBN', requires_grad=False),
-        style='pytorch',
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained)),
     ldm=dict(
         type='DDIMSampler', 
         model='configs/ldm_ad/cldm_v15.yaml', 
-        # model='configs/ldm_ad/sd_v15.yaml', 
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
         control_pretrain='checkpoints/control_v11p_sd15_scribble.pth', 
-        # control_pretrain=None
     ), 
     with_ldm=True,
     with_ldm_as_backbone=True, 
     decode_head=dict(
         type='Mask2FormerHeadP2A2',
-        in_channels=[256, 832, 1664, 3328],
+        in_channels=[128, 576, 1152, 2304],
         strides=[4, 8, 16, 32],
         feat_channels=256,
         out_channels=256,
@@ -47,7 +54,7 @@ model = dict(
         align_corners=False,
         pixel_decoder=dict(
             type='mmdet.MSDeformAttnPixelDecoder',
-            in_channels=[256, 832, 1664, 3328],
+            in_channels=[128, 576, 1152, 2304],
             num_outs=3,
             norm_cfg=dict(type='GN', num_groups=32),
             act_cfg=dict(type='ReLU'),
@@ -79,7 +86,7 @@ model = dict(
             num_feats=128, normalize=True),
         transformer_decoder=dict(  # Mask2FormerTransformerDecoder
             return_intermediate=True,
-            num_layers=9,
+            num_layers=6,
             layer_cfg=dict(  # Mask2FormerTransformerDecoderLayer
                 self_attn_cfg=dict(  # MultiheadAttention
                     embed_dims=256,
@@ -123,10 +130,10 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_seg=dict(
-            type='SegmentationLoss',
-            reduction='mean',
-            loss_weight=10.0),
+        # loss_seg=dict(
+        #     type='SegmentationLoss',
+        #     reduction='mean',
+        #     loss_weight=1.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -185,8 +192,8 @@ test_dataset_type = 'FSLostAndFoundDataset'
 test_data_root = 'data/FS_LostFound'
 # test_data_root = 'data/FS_Static'
 
-train_dataloader = dict(batch_size=4,
-                        num_workers=4,
+train_dataloader = dict(batch_size=2,
+                        num_workers=2,
                         dataset=dict(type=train_dataset_type, 
                                      data_root=train_data_root, 
                                      num_anomalies=1000, 
@@ -222,16 +229,7 @@ optim_wrapper = dict(
             'level_embed': embed_multi,
         },
         norm_decay_mult=0.0))
-# learning policy
-# param_scheduler = [
-#     dict(
-#         type='PolyLR',
-#         eta_min=0,
-#         power=0.9,
-#         begin=0,
-#         end=90000,
-#         by_epoch=False)
-# ]
+
 
 # training schedule for 90k
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000, val_interval=1000)
@@ -243,7 +241,6 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(
         type='CheckpointHook', by_epoch=False, interval=1000,
-        # save_best='mIoU'),
         save_best='FPR@95TPR', rule='less'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=1))
@@ -254,9 +251,6 @@ custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 #   - `enable` means enable scaling LR automatically
 #       or not by default.
 #   - `base_batch_size` = (8 GPUs) x (2 samples per GPU).
-auto_scale_lr = dict(enable=True, base_batch_size=16)
+auto_scale_lr = dict(enable=False, base_batch_size=16)
 
-
-load_from = 'work_dirs/mask2former_r50_sd_cityscapes/iter_90000.pth'
-
-# find_unused_parameters = True
+load_from = 'work_dirs/mask2former_swin-b_sd_cityscapes/iter_90000.pth'

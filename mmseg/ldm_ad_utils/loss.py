@@ -157,12 +157,13 @@ class SegmentationLoss(nn.Module):
         mask_preds = mask_preds.sigmoid()
         seg_logits = torch.einsum('bqc, bqhw->bchw', cls_scores, mask_preds)
         pred_anomaly_maps = seg_logits[:, 1, :, :] - seg_logits[:, 0, :, :]
-                
+        
+
         if reduction == 'mean':
             # mean of empty tensor is nan
             # loss = (seg_logits[:, 0, :, :] * (ood_mask == 1) + seg_logits[:, 1, :, :] * (ood_mask == 0)).mean()
             # loss = seg_logits[:, 0, :, :][ood_mask == 1].mean() + seg_logits[:, 1, :, :][ood_mask == 0].mean()
-            loss = torch.pow(torch.clamp(pred_anomaly_maps[ood_mask == 0] - 1, min=0.0), 2).mean()
+            loss = torch.pow(torch.clamp(pred_anomaly_maps[ood_mask == 0], min=0.0), 2).mean()
             if (ood_mask == 1).any():
                 loss = loss + torch.pow(torch.clamp(2 - pred_anomaly_maps[ood_mask == 1], min=0.0), 2).mean()
             # loss = torch.pow(torch.clamp(2 - seg_logits[:, 0, :, :][ood_mask == 0], min=0.0), 2).mean() + torch.pow(seg_logits[:, 1, :, :][ood_mask == 0], 2).mean()

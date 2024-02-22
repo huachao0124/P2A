@@ -102,7 +102,7 @@ class PasteAnomalies(BaseTransform):
         if np.random.uniform() >= self.mix_ratio:
             return results
         # select random anomalies
-        curr_num_anomalies = random.choices(range(1, 6), weights=[10, 5, 2, 2, 2], k=1)[0]
+        curr_num_anomalies = random.choices(range(1, 4), weights=[4, 1, 1], k=1)[0]
         selected_anomalies_indices = random.choices(range(results['num_anomalies']), k=curr_num_anomalies)
         results['anomalies'] = []
         for idx in selected_anomalies_indices:

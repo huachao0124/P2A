@@ -13,7 +13,6 @@ data_preprocessor = dict(
 num_classes = 19
 model = dict(
     type='EncoderDecoderLDMP2A2',
-    # type='EncoderDecoderLDMP2AReshape',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -28,10 +27,8 @@ model = dict(
     ldm=dict(
         type='DDIMSampler', 
         model='configs/ldm_ad/cldm_v15.yaml', 
-        # model='configs/ldm_ad/sd_v15.yaml', 
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
-        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth', 
-        # control_pretrain=None
+        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
     ), 
     with_ldm=True,
     with_ldm_as_backbone=True, 
@@ -123,10 +120,6 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_seg=dict(
-            type='SegmentationLoss',
-            reduction='mean',
-            loss_weight=10.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -156,7 +149,7 @@ buffer_path = 'ldm/buffer'
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='PasteAnomalies', buffer_path=buffer_path, part_instance=False, mix_ratio=0.2), 
+    dict(type='PasteAnomalies', buffer_path=buffer_path, mix_ratio=0.2), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -171,37 +164,31 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
-    # dict(type='Resize', scale=(1024, 512)),
-    # dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
+    dict(type='Resize', scale=(1024, 512)),
+    dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
     dict(type='PackSegInputs')
 ]
 
 # dataset settings
 train_dataset_type = 'CityscapesWithAnomaliesDataset'
 train_data_root = 'data/cityscapes/'
-# test_dataset_type = 'RoadAnomalyDataset'
-# test_data_root = 'data/RoadAnomaly'
-test_dataset_type = 'FSLostAndFoundDataset'
-test_data_root = 'data/FS_LostFound'
-# test_data_root = 'data/FS_Static'
+test_dataset_type = 'RoadAnomalyDataset'
+test_data_root = 'data/RoadAnomaly'
+# test_dataset_type = 'FSLostAndFoundDataset'
+# test_data_root = 'data/FS_LostFound'
 
-train_dataloader = dict(batch_size=4,
-                        num_workers=4,
-                        dataset=dict(type=train_dataset_type, 
+train_dataloader = dict(dataset=dict(type=train_dataset_type, 
                                      data_root=train_data_root, 
-                                     num_anomalies=1000, 
-                                     num_classes=num_classes, 
                                      pipeline=train_pipeline))
-# val_dataloader = dict(dataset=dict(type=test_dataset_type, 
-#                                      data_root=test_data_root, 
-#                                      pipeline=test_pipeline))
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
-                                     pipeline=test_pipeline, 
-                                    #  img_suffix='.jpg',
-                                     data_prefix=dict(
-                                            img_path='images',
-                                            seg_map_path='labels_masks')))
+                                     pipeline=test_pipeline))
+# val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+#                                      data_root=test_data_root, 
+#                                      pipeline=test_pipeline, 
+#                                      data_prefix=dict(
+#                                             img_path='images', 
+#                                             seg_map_path='labels_masks')))
 test_dataloader = val_dataloader
 val_evaluator = dict(type='AnomalyMetricP2A')
 test_evaluator = val_evaluator
@@ -244,19 +231,16 @@ default_hooks = dict(
     checkpoint=dict(
         type='CheckpointHook', by_epoch=False, interval=1000,
         # save_best='mIoU'),
-        save_best='FPR@95TPR', rule='less'),
+        save_best='AUPRC', rule='greater'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=1))
 
-custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically
 #       or not by default.
 #   - `base_batch_size` = (8 GPUs) x (2 samples per GPU).
-auto_scale_lr = dict(enable=True, base_batch_size=16)
+auto_scale_lr = dict(enable=False, base_batch_size=16)
 
 
 load_from = 'work_dirs/mask2former_r50_sd_cityscapes/iter_90000.pth'
-
-# find_unused_parameters = True

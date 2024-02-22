@@ -2211,7 +2211,7 @@ class EncoderDecoderLDMP2A2(EncoderDecoder):
             sd_features = []
             for idx in out_indices:
                 sd_features.append(all_sd_features[idx])
-
+                
             out_features = [r50_features[0]]
             for layer in range(1, 4):
                 out_features.append(torch.cat((r50_features[layer], sd_features[layer - 1]), dim=1))
@@ -2302,6 +2302,44 @@ class EncoderDecoderLDMP2A2(EncoderDecoder):
             })
 
         return data_samples
+    
+    
+@MODELS.register_module()
+class EncoderDecoderLDMP2AReshape(EncoderDecoderLDMP2A2):    
+    def extract_feat(self, inputs: Tensor) -> List[Tensor]:
+        if self.with_ldm_as_backbone:
+            """Extract features from images."""
+            r50_features = self.backbone(inputs)
+            
+            B, C, H, W = inputs.shape
+            nH, nW = H // 512, W // 512
+            inputs = rearrange(inputs, 'B C (nH H) (nW W) -> (B nH nW) C H W', nH=nH, nW=nW, H=512, W=512)
+            encoder_posterior = self.ldm.model.encode_first_stage(inputs)
+            z = self.ldm.model.get_first_stage_encoding(encoder_posterior).detach()
+            t = torch.full((z.shape[0], ), 50, device=inputs.device, dtype=torch.long)
+            cond = {"c_concat": None, "c_crossattn": [self.ldm.model.get_learned_conditioning([""] * z.shape[0])]}
+            all_sd_features = self.ldm.model.model.diffusion_model.forward_features(z, t, context=cond["c_crossattn"])
+            out_indices = (11, 7, 4)
+            sd_features = []
+            for idx in out_indices:
+                sd_features.append(rearrange(all_sd_features[idx], '(B nH nW) C H W -> B C (nH H) (nW W)', B=B, nH=nH, nW=nW))
+            
+            out_features = [r50_features[0]]
+            for layer in range(1, 4):
+                out_features.append(torch.cat((r50_features[layer], sd_features[layer - 1]), dim=1))
+            
+            if self.with_neck:
+                out_features = self.neck(out_features)
+            
+            return out_features
+        else:
+            x = self.backbone(inputs)
+            if self.with_neck:
+                x = self.neck(x)
+            return x
+    
+
+
 
 
 @MODELS.register_module()
@@ -3599,136 +3637,125 @@ class Mask2FormerHeadRbA(Mask2FormerHead):
         return loss_cls, loss_mask, loss_dice, loss_rba
     
 
+
+# 只把分类头多改一个类
 @MODELS.register_module()
-class EncoderDecoderSwinD4SD(EncoderDecoder):
+class Mask2FormerHeadP2A4(Mask2FormerHead):
     def __init__(self,
-                 backbone: ConfigType,
-                 ldm: ConfigType, 
-                 decode_head: ConfigType,
-                 with_ldm: bool = False, 
-                 with_ldm_as_backbone: bool = False, 
-                 neck: OptConfigType = None,
-                 auxiliary_head: OptConfigType = None,
-                 train_cfg: OptConfigType = None,
-                 test_cfg: OptConfigType = None,
-                 data_preprocessor: OptConfigType = None,
-                 pretrained: Optional[str] = None,
-                 init_cfg: OptMultiConfig = None):
-        super().__init__(
-                 backbone,
-                 decode_head,
-                 neck,
-                 auxiliary_head,
-                 train_cfg,
-                 test_cfg,
-                 data_preprocessor,
-                 pretrained,
-                 init_cfg)
+                 loss_seg=None, 
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.loss_seg = None
+        if loss_seg is not None:
+            self.loss_seg = MODELS.build(loss_seg)
+    
+    
+    def loss_by_feat(self, all_cls_scores: Tensor, all_mask_preds: Tensor,
+                     batch_gt_instances: List[InstanceData],
+                     batch_img_metas: List[dict]) -> Dict[str, Tensor]:
+        num_dec_layers = len(all_cls_scores)
+        batch_gt_instances_list = [
+            batch_gt_instances for _ in range(num_dec_layers)
+        ]
+        img_metas_list = [batch_img_metas for _ in range(num_dec_layers)]
+        losses_cls, losses_mask, losses_dice, losses_seg = multi_apply(
+            self._loss_by_feat_single, all_cls_scores, all_mask_preds,
+            batch_gt_instances_list, img_metas_list)
+
+        loss_dict = dict()
+        # loss from the last decoder layer
+        loss_dict['loss_cls'] = losses_cls[-1]
+        loss_dict['loss_mask'] = losses_mask[-1]
+        loss_dict['loss_dice'] = losses_dice[-1]
+        if losses_seg[0] is not None:
+            loss_dict['loss_seg'] = losses_seg[-1]
+        # loss from other decoder layers
+        num_dec_layer = 0
+        for loss_cls_i, loss_mask_i, loss_dice_i, loss_seg in zip(
+                losses_cls[:-1], losses_mask[:-1], losses_dice[:-1], losses_seg[:-1]):
+            loss_dict[f'd{num_dec_layer}.loss_cls'] = loss_cls_i
+            loss_dict[f'd{num_dec_layer}.loss_mask'] = loss_mask_i
+            loss_dict[f'd{num_dec_layer}.loss_dice'] = loss_dice_i
+            if loss_seg is not None:
+                loss_dict[f'd{num_dec_layer}.loss_seg'] = loss_seg
+            num_dec_layer += 1
+        return loss_dict
+    
+    
+    def _loss_by_feat_single(self, cls_scores: Tensor, mask_preds: Tensor,
+                             batch_gt_instances: List[InstanceData],
+                             batch_img_metas: List[dict]) -> Tuple[Tensor]:
+        num_imgs = cls_scores.size(0)
+        cls_scores_list = [cls_scores[i] for i in range(num_imgs)]
+        mask_preds_list = [mask_preds[i] for i in range(num_imgs)]
+        (labels_list, label_weights_list, mask_targets_list, mask_weights_list,
+         avg_factor) = self.get_targets(cls_scores_list, mask_preds_list,
+                                        batch_gt_instances, batch_img_metas)
+        # shape (batch_size, num_queries)
+        labels = torch.stack(labels_list, dim=0)
+        # shape (batch_size, num_queries)
+        label_weights = torch.stack(label_weights_list, dim=0)
+        # shape (num_total_gts, h, w)
+        mask_targets = torch.cat(mask_targets_list, dim=0)
+        # shape (batch_size, num_queries)
+        mask_weights = torch.stack(mask_weights_list, dim=0)
         
-        if with_ldm:
-            self.ldm = MODELS.build(ldm)
-            self.freeze_ldm()
-            
-        self.with_ldm_as_backbone = with_ldm_as_backbone
-    
-    def freeze_ldm(self):
-        for m in self.ldm.parameters():
-            m.requires_grad = False
-    
-    
-    def extract_feat(self, inputs: Tensor) -> List[Tensor]:
-        if self.with_ldm_as_backbone:
-            """Extract features from images."""
-            backbone_features = self.backbone(inputs)
-            
-            encoder_posterior = self.ldm.model.encode_first_stage(inputs)
-            z = self.ldm.model.get_first_stage_encoding(encoder_posterior).detach()
-            t = torch.full((z.shape[0], ), 50, device=inputs.device, dtype=torch.long)
-            cond = {"c_concat": None, "c_crossattn": [self.ldm.model.get_learned_conditioning([""] * z.shape[0])]}
-            all_sd_features = self.ldm.model.model.diffusion_model.forward_features(z, t, context=cond["c_crossattn"])
-            out_indices = (11, 7, 4)
-            sd_features = []
-            for idx in out_indices:
-                sd_features.append(all_sd_features[idx])
-            
-            out_features = [backbone_features[0]]
-            for layer in range(1, 4):
-                out_features.append(sd_features[layer - 1])
-            
-            if self.with_neck:
-                out_features = self.neck(out_features)
-            
-            return out_features
-        else:
-            x = self.backbone(inputs)
-            if self.with_neck:
-                x = self.neck(x)
-            return x
-    
-    
-    def postprocess_result(self,
-                           seg_logits: Tensor,
-                           data_samples: OptSampleList = None) -> SampleList:
-        batch_size, C, H, W = seg_logits.shape
+        # classfication loss
+        # shape (batch_size * num_queries, )
+        cls_scores = cls_scores.flatten(0, 1)
+        labels = labels.flatten(0, 1)
+        label_weights = label_weights.flatten(0, 1)
 
-        if data_samples is None:
-            data_samples = [SegDataSample() for _ in range(batch_size)]
-            only_prediction = True
-        else:
-            only_prediction = False
+        class_weight = cls_scores.new_tensor(self.class_weight)
+        
+        
+        loss_cls = self.loss_cls(
+            cls_scores,
+            labels,
+            label_weights,
+            avg_factor=class_weight[labels].sum())
 
-        for i in range(batch_size):
-            if not only_prediction:
-                img_meta = data_samples[i].metainfo
-                # remove padding area
-                if 'img_padding_size' not in img_meta:
-                    padding_size = img_meta.get('padding_size', [0] * 4)
-                else:
-                    padding_size = img_meta['img_padding_size']
-                padding_left, padding_right, padding_top, padding_bottom =\
-                    padding_size
-                # i_seg_logits shape is 1, C, H, W after remove padding
-                i_seg_logits = seg_logits[i:i + 1, :,
-                                          padding_top:H - padding_bottom,
-                                          padding_left:W - padding_right]
+        num_total_masks = reduce_mean(cls_scores.new_tensor([avg_factor]))
+        num_total_masks = max(num_total_masks, 1)
 
-                flip = img_meta.get('flip', None)
-                if flip:
-                    flip_direction = img_meta.get('flip_direction', None)
-                    assert flip_direction in ['horizontal', 'vertical']
-                    if flip_direction == 'horizontal':
-                        i_seg_logits = i_seg_logits.flip(dims=(3, ))
-                    else:
-                        i_seg_logits = i_seg_logits.flip(dims=(2, ))
+        # extract positive ones
+        # shape (batch_size, num_queries, h, w) -> (num_total_gts, h, w)
+        mask_preds = mask_preds[mask_weights > 0]
 
-                # # resize as original shape
-                # i_seg_logits = resize(
-                #     i_seg_logits,
-                #     size=img_meta['ori_shape'],
-                #     mode='bilinear',
-                #     align_corners=self.align_corners,
-                #     warning=False).squeeze(0)
-                i_seg_logits = i_seg_logits.squeeze(0)
-            else:
-                i_seg_logits = seg_logits[i]
+        if mask_targets.shape[0] == 0:
+            # zero match
+            loss_dice = mask_preds.sum()
+            loss_mask = mask_preds.sum()
+            return loss_cls, loss_mask, loss_dice
 
-            if C > 1:
-                i_seg_pred = i_seg_logits.argmax(dim=0, keepdim=True)
-            else:
-                i_seg_logits = i_seg_logits.sigmoid()
-                i_seg_pred = (i_seg_logits >
-                              self.decode_head.threshold).to(i_seg_logits)
-            data_samples[i].set_data({
-                'seg_logits':
-                PixelData(**{'data': i_seg_logits}),
-                'pred_sem_seg':
-                PixelData(**{'data': i_seg_pred})
-            })
+        with torch.no_grad():
+            points_coords = get_uncertain_point_coords_with_randomness(
+                mask_preds.unsqueeze(1), None, self.num_points,
+                self.oversample_ratio, self.importance_sample_ratio)
+            # shape (num_total_gts, h, w) -> (num_total_gts, num_points)
+            mask_point_targets = point_sample(
+                mask_targets.unsqueeze(1).float(), points_coords).squeeze(1)
+        # shape (num_queries, h, w) -> (num_queries, num_points)
+        mask_point_preds = point_sample(
+            mask_preds.unsqueeze(1), points_coords).squeeze(1)
 
-        return data_samples
+        # dice loss
+        loss_dice = self.loss_dice(
+            mask_point_preds, mask_point_targets, avg_factor=num_total_masks)
 
-
-
-
-
-
+        # mask loss
+        # shape (num_queries, num_points) -> (num_queries * num_points, )
+        mask_point_preds = mask_point_preds.reshape(-1)
+        # shape (num_total_gts, num_points) -> (num_total_gts * num_points, )
+        mask_point_targets = mask_point_targets.reshape(-1)
+        loss_mask = self.loss_mask(
+            mask_point_preds,
+            mask_point_targets,
+            avg_factor=num_total_masks * self.num_points)
+        
+        loss_seg = None
+        if self.loss_seg is not None:
+            loss_seg = self.loss_seg(torch.stack(cls_scores_list), \
+                                    torch.stack(mask_preds_list), batch_gt_instances, batch_img_metas)
+        
+        return loss_cls, loss_mask, loss_dice, loss_seg
