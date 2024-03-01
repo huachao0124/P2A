@@ -123,10 +123,10 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        loss_seg=dict(
-            type='SegmentationLoss',
-            reduction='mean',
-            loss_weight=10.0),
+        # loss_seg=dict(
+        #     type='SplitSegmentationLoss',
+        #     reduction='mean',
+        #     loss_weight=5.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -179,14 +179,14 @@ test_pipeline = [
 # dataset settings
 train_dataset_type = 'CityscapesWithAnomaliesDataset'
 train_data_root = 'data/cityscapes/'
-# test_dataset_type = 'RoadAnomalyDataset'
-# test_data_root = 'data/RoadAnomaly'
+test_dataset_type = 'RoadAnomalyDataset'
+test_data_root = 'data/RoadAnomaly'
 test_dataset_type = 'FSLostAndFoundDataset'
 test_data_root = 'data/FS_LostFound'
 # test_data_root = 'data/FS_Static'
 
-train_dataloader = dict(batch_size=4,
-                        num_workers=4,
+train_dataloader = dict(batch_size=2,
+                        num_workers=2,
                         dataset=dict(type=train_dataset_type, 
                                      data_root=train_data_root, 
                                      num_anomalies=1000, 
@@ -233,6 +233,10 @@ optim_wrapper = dict(
 #         by_epoch=False)
 # ]
 
+vis_backends = [dict(type='LocalVisBackend')]
+visualizer = dict(
+    type='VisualizerHeatMap', vis_backends=vis_backends, name='visualizer')
+
 # training schedule for 90k
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000, val_interval=1000)
 val_cfg = dict(type='ValLoop')
@@ -254,7 +258,7 @@ custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 #   - `enable` means enable scaling LR automatically
 #       or not by default.
 #   - `base_batch_size` = (8 GPUs) x (2 samples per GPU).
-auto_scale_lr = dict(enable=True, base_batch_size=16)
+auto_scale_lr = dict(enable=False, base_batch_size=16)
 
 
 load_from = 'work_dirs/mask2former_r50_sd_cityscapes/iter_90000.pth'

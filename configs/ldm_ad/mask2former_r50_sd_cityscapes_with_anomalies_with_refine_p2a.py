@@ -10,9 +10,10 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size,
     test_cfg=dict(size_divisor=32))
-num_classes = 20
+num_classes = 19
 model = dict(
-    type='EncoderDecoderLDM',
+    type='EncoderDecoderLDMP2A5',
+    # type='EncoderDecoderLDMP2AReshape',
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type='ResNet',
@@ -27,13 +28,15 @@ model = dict(
     ldm=dict(
         type='DDIMSampler', 
         model='configs/ldm_ad/cldm_v15.yaml', 
+        # model='configs/ldm_ad/sd_v15.yaml', 
         ldm_pretrain='checkpoints/v1-5-pruned.ckpt', 
-        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth'
+        control_pretrain='checkpoints/control_v11p_sd15_scribble.pth', 
+        # control_pretrain=None
     ), 
     with_ldm=True,
-    with_ldm_as_backbone=True,
+    with_ldm_as_backbone=True, 
     decode_head=dict(
-        type='Mask2FormerHeadP2A4',
+        type='Mask2FormerHeadP2A5',
         in_channels=[256, 832, 1664, 3328],
         strides=[4, 8, 16, 32],
         feat_channels=256,
@@ -106,7 +109,7 @@ model = dict(
             use_sigmoid=False,
             loss_weight=2.0,
             reduction='mean',
-            class_weight=[1.0] * num_classes + [0.1]),
+            class_weight=[1.0, 1.0, 0.1]),
         loss_mask=dict(
             type='mmdet.CrossEntropyLoss',
             use_sigmoid=True,
@@ -119,6 +122,10 @@ model = dict(
             reduction='mean',
             naive_dice=True,
             eps=1.0,
+            loss_weight=5.0),
+        loss_seg=dict(
+            type='RefineLoss',
+            reduction='mean',
             loss_weight=5.0),
         train_cfg=dict(
             num_points=12544,
@@ -149,7 +156,7 @@ buffer_path = 'ldm/buffer'
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='PasteAnomalies', buffer_path=buffer_path, part_instance=False, mix_ratio=0.2), 
+    dict(type='PasteAnomalies', buffer_path=buffer_path, part_instance=False, mix_ratio=0.5), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -164,8 +171,8 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
-    dict(type='Resize', scale=(1024, 512)),
-    dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
+    # dict(type='Resize', scale=(1024, 512)),
+    # dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
     dict(type='PackSegInputs')
 ]
 
@@ -174,29 +181,29 @@ train_dataset_type = 'CityscapesWithAnomaliesDataset'
 train_data_root = 'data/cityscapes/'
 test_dataset_type = 'RoadAnomalyDataset'
 test_data_root = 'data/RoadAnomaly'
-# test_dataset_type = 'FSLostAndFoundDataset'
-# test_data_root = 'data/FS_LostFound'
+test_dataset_type = 'FSLostAndFoundDataset'
+test_data_root = 'data/FS_LostFound'
 # test_data_root = 'data/FS_Static'
 
-train_dataloader = dict(batch_size=4,
-                        num_workers=4,
+train_dataloader = dict(batch_size=2,
+                        num_workers=2,
                         dataset=dict(type=train_dataset_type, 
                                      data_root=train_data_root, 
                                      num_anomalies=1000, 
-                                     num_classes=19, 
+                                     num_classes=num_classes, 
                                      pipeline=train_pipeline))
-val_dataloader = dict(dataset=dict(type=test_dataset_type, 
-                                     data_root=test_data_root, 
-                                     pipeline=test_pipeline))
 # val_dataloader = dict(dataset=dict(type=test_dataset_type, 
 #                                      data_root=test_data_root, 
-#                                      pipeline=test_pipeline, 
-#                                     #  img_suffix='.jpg',
-#                                      data_prefix=dict(
-#                                             img_path='images',
-#                                             seg_map_path='labels_masks')))
+#                                      pipeline=test_pipeline))
+val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+                                     data_root=test_data_root, 
+                                     pipeline=test_pipeline, 
+                                    #  img_suffix='.jpg',
+                                     data_prefix=dict(
+                                            img_path='images',
+                                            seg_map_path='labels_masks')))
 test_dataloader = val_dataloader
-val_evaluator = dict(type='AnomalyMetricP2A4')
+val_evaluator = dict(type='AnomalyMetricP2A5')
 test_evaluator = val_evaluator
 
 # optimizer
@@ -215,6 +222,20 @@ optim_wrapper = dict(
             'level_embed': embed_multi,
         },
         norm_decay_mult=0.0))
+# learning policy
+# param_scheduler = [
+#     dict(
+#         type='PolyLR',
+#         eta_min=0,
+#         power=0.9,
+#         begin=0,
+#         end=90000,
+#         by_epoch=False)
+# ]
+
+vis_backends = [dict(type='LocalVisBackend')]
+visualizer = dict(
+    type='VisualizerHeatMap', vis_backends=vis_backends, name='visualizer')
 
 # training schedule for 90k
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000, val_interval=1000)
@@ -238,3 +259,9 @@ custom_hooks = [dict(type='GeneratePseudoAnomalyHook')]
 #       or not by default.
 #   - `base_batch_size` = (8 GPUs) x (2 samples per GPU).
 auto_scale_lr = dict(enable=False, base_batch_size=16)
+
+
+# load_from = 'work_dirs/mask2former_r50_sd_cityscapes/iter_90000.pth'
+load_from = 'work_dirs/mask2former_r50_sd_cityscapes_with_anomalies_p2a/iter_10000.pth'
+
+# find_unused_parameters = True

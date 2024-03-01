@@ -205,7 +205,97 @@ class GeneratePseudoAnomalyHook(Hook):
         red_mask_on_img = img.copy()
         red_mask_on_img[:, :, :1][mask == 255] = 0.5 * img[:, :, :1][mask == 255] + 0.5 * red_mask[:, :, :1][mask == 255]
         Image.fromarray(img).save(f'samples/{idx}.jpg')
-        
+
+
+from mmseg.visualization.local_visualizer import SegLocalVisualizer
+from mmengine.dist import master_only
+from mmengine.registry import VISBACKENDS, VISUALIZERS
+
+@VISUALIZERS.register_module()
+class VisualizerHeatMap(SegLocalVisualizer):
+    @master_only
+    def add_datasample(
+            self,
+            name: str,
+            image: np.ndarray,
+            data_sample: Optional[SegDataSample] = None,
+            draw_gt: bool = True,
+            draw_pred: bool = True,
+            show: bool = False,
+            wait_time: float = 0,
+            # TODO: Supported in mmengine's Viusalizer.
+            out_file: Optional[str] = None,
+            step: int = 0,
+            with_labels: Optional[bool] = True) -> None:
+        classes = self.dataset_meta.get('classes', None)
+        palette = self.dataset_meta.get('palette', None)
+
+        gt_img_data = None
+        pred_img_data = None
+
+        if draw_gt and data_sample is not None:
+            if 'gt_sem_seg' in data_sample:
+                assert classes is not None, 'class information is ' \
+                                            'not provided when ' \
+                                            'visualizing semantic ' \
+                                            'segmentation results.'
+                gt_img_data = self._draw_sem_seg(image, data_sample.gt_sem_seg,
+                                                 classes, palette, with_labels)
+
+            if 'gt_depth_map' in data_sample:
+                gt_img_data = gt_img_data if gt_img_data is not None else image
+                gt_img_data = self._draw_depth_map(gt_img_data,
+                                                   data_sample.gt_depth_map)
+
+        if draw_pred and data_sample is not None:
+
+            if 'pred_sem_seg' in data_sample:
+
+                assert classes is not None, 'class information is ' \
+                                            'not provided when ' \
+                                            'visualizing semantic ' \
+                                            'segmentation results.'
+                pred_img_data = self._draw_sem_seg(image,
+                                                   data_sample.pred_sem_seg,
+                                                   classes, palette,
+                                                   with_labels)
+
+            if 'pred_depth_map' in data_sample:
+                pred_img_data = pred_img_data if pred_img_data is not None \
+                    else image
+                pred_img_data = self._draw_depth_map(
+                    pred_img_data, data_sample.pred_depth_map)
+
+        if gt_img_data is not None and pred_img_data is not None:
+            drawn_img = np.concatenate((gt_img_data, pred_img_data), axis=1)
+        elif gt_img_data is not None:
+            drawn_img = gt_img_data
+        else:
+            drawn_img = pred_img_data
+
+        # heatmap = (data_sample.seg_logits.data[1, :, :] - data_sample.seg_logits.data[0, :, :]).cpu().numpy()
+        # heatmap = data_sample.seg_logits.data[1, :, :].cpu().numpy()
+        # heatmap = -np.max(data_sample.seg_logits.data[:, :, :].cpu().numpy(), axis=0)
+        # assert data_sample.seg_logits.data.shape[0] >= 3
+        seg_logits = data_sample.seg_logits.data.cpu().numpy()
+        heatmap = -seg_logits[0, :, :]
+        heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
+        heatmap = seg_logits[1, :, :] * heatmap - seg_logits[0, :, :]
+        heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
+        # heatmap = (heatmap + 5) / 10
+        heatmap = (heatmap * 255).astype(np.uint8)
+        heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)[:, :, ::-1]
+        drawn_img = np.concatenate((drawn_img, heatmap), axis=1)
+
+        if show:
+            self.show(drawn_img, win_name=name, wait_time=wait_time)
+
+        if out_file is not None:
+            mmcv.imwrite(mmcv.rgb2bgr(drawn_img), out_file)
+        else:
+            self.add_image(name, drawn_img, step)
+
+
 
 @HOOKS.register_module()
 class SegVisualizationWithResizeHook(Hook):
@@ -273,6 +363,11 @@ class SegVisualizationWithResizeHook(Hook):
         """
         if self.draw is False or mode == 'train':
             return
+        
+        # heatmaps = []
+        # for output in outputs:
+        #     anomaly_score = (output.seg_logits.data[1, :, :] - output.seg_logits.data[0, :, :]).cpu().numpy()
+        #     print(anomaly_score.max(), anomaly_score.min())
 
         if self.every_n_inner_iters(batch_idx, self.interval):
             for output in outputs:

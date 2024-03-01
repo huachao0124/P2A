@@ -4,8 +4,9 @@ from .model import (EncoderDecoderLDM,
                     EncoderDecoderLDMP2A,
                     EncoderDecoderLDMP2A2,
                     EncoderDecoderLDMP2A3,
+                    EncoderDecoderLDMP2A5,
                     EncoderDecoderLDMRbA, 
-                    EncoderDecoderSwinD4SD, 
+                    # EncoderDecoderSwinD4SD, 
                     EncoderDecoderLDMP2AD4,
                     EncoderDecoderLDMP2A2Reshape,
                     FixedMatchingMask2FormerHead, 
@@ -17,7 +18,7 @@ from .model import (EncoderDecoderLDM,
                     Mask2FormerHeadRbA, 
                     Mask2FormerHeadWithoutMask, 
                     Mask2FormerHeadP2A4)
-from .hook import GeneratePseudoAnomalyHook, TextInitQueriesHook, SegVisualizationWithResizeHook
+from .hook import GeneratePseudoAnomalyHook, TextInitQueriesHook, SegVisualizationWithResizeHook, VisualizerHeatMap
 from .dataset import (CityscapesWithAnomaliesDataset, 
                       PasteAnomalies, 
                       RoadAnomalyDataset,
@@ -30,8 +31,8 @@ from .dataset import (CityscapesWithAnomaliesDataset,
                       AnomalyTrackDataset)
 from .utils import FixedAssigner
 from .loop import MyIterBasedTrainLoop
-from .metric import AnomalyMetric, AnomalyMetricDoublePart, AnomalyMetricP2A, AnomalyMetricRbA, AnomalyMetricP2A4
-from .loss import ContrastiveLoss, ContrastiveLossCoco, SegmentationLoss
+from .metric import AnomalyMetric, AnomalyMetricDoublePart, AnomalyMetricP2A, AnomalyMetricRbA, AnomalyMetricP2A4, AnomalyMetricP2A5
+from .loss import ContrastiveLoss, ContrastiveLossCoco, SegmentationLoss, SplitSegmentationLoss
 
 
 __all__ = ['DDIMSampler', 
@@ -40,6 +41,7 @@ __all__ = ['DDIMSampler',
            'EncoderDecoderLDMP2A',
            'EncoderDecoderLDMP2A2',
            'EncoderDecoderLDMP2A3',
+           'EncoderDecoderLDMP2A5',
            'EncoderDecoderLDMRbA', 
            'EncoderDecoderSwinD4SD',
            'EncoderDecoderLDMP2AD4',
@@ -49,6 +51,7 @@ __all__ = ['DDIMSampler',
            'Mask2FormerHeadP2A',
            'Mask2FormerHeadP2A2',
            'Mask2FormerHeadP2A3',
+           'Mask2FormerHeadP2A5',
            'Mask2FormerHeadRbA', 
            'Mask2FormerHeadWithoutMask',
            'Mask2FormerHeadP2A4',
@@ -66,6 +69,7 @@ __all__ = ['DDIMSampler',
            'ContrastiveLoss', 
            'ContrastiveLossCoco', 
            'SegmentationLoss', 
+           'SplitSegmentationLoss', 
            'CityscapesWithCocoDataset', 
            'CocoSemSeg', 
            'PasteCocoObjects', 
@@ -75,4 +79,6 @@ __all__ = ['DDIMSampler',
            'AnomalyMetricDoublePart',
            'AnomalyMetricP2A', 
            'AnomalyMetricRbA', 
-           'AnomalyMetricP2A4']
+           'AnomalyMetricP2A4',
+           'AnomalyMetricP2A5',
+           'VisualizerHeatMap']

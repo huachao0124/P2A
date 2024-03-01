@@ -102,7 +102,8 @@ class PasteAnomalies(BaseTransform):
         if np.random.uniform() >= self.mix_ratio:
             return results
         # select random anomalies
-        curr_num_anomalies = random.choices(range(1, 4), weights=[4, 1, 1], k=1)[0]
+        # curr_num_anomalies = random.choices(range(1, 4), weights=[4, 1, 1], k=1)[0]
+        curr_num_anomalies = random.choices(range(1, 6), weights=[10, 5, 2, 2, 2], k=1)[0]
         selected_anomalies_indices = random.choices(range(results['num_anomalies']), k=curr_num_anomalies)
         results['anomalies'] = []
         for idx in selected_anomalies_indices:
@@ -136,10 +137,7 @@ class PasteAnomalies(BaseTransform):
             resize_mask = cv2.resize(mask, (new_w, new_h))
                  
             x = random.randint(0, img_w - new_w)
-            try:
-                y = random.randint(448, img_h - new_h)
-            except:
-                y = random.randint(0, img_h - new_h)
+            y = random.randint(0, img_h - new_h)
             results['img'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = resize_image[resize_mask > 0]
             if not self.part_instance:
                 results['gt_seg_map'][y: (y + new_h), x: (x + new_w)][resize_mask > 0] = results['num_classes']
@@ -155,9 +153,20 @@ class PasteAnomalies(BaseTransform):
 
 @DATASETS.register_module()
 class RoadAnomalyDataset(Dataset):
+    # METAINFO = dict(
+    #     classes=('anomaly', 'not anomaly'),
+    #     palette=[[128, 64, 128], [244, 35, 232]])
     METAINFO = dict(
-        classes=('anomaly', 'not anomaly'),
-        palette=[[128, 64, 128], [244, 35, 232]])
+        classes=('road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+                 'traffic light', 'traffic sign', 'vegetation', 'terrain',
+                 'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
+                 'motorcycle', 'bicycle', 'anomaly'),
+        palette=[[128, 64, 128], [244, 35, 232], [70, 70, 70], [102, 102, 156],
+                 [190, 153, 153], [153, 153, 153], [250, 170, 30], [220, 220, 0],
+                 [107, 142, 35], [152, 251, 152], [70, 130, 180],
+                 [220, 20, 60], [255, 0, 0], [0, 0, 142], [0, 0, 70],
+                 [0, 60, 100], [0, 80, 100], [0, 0, 230], [119, 11, 32], 
+                 [0, 255, 0]])
     def __init__(self, 
                  data_root: str = None, 
                  pipeline: List[Union[dict, Callable]] = [], 
@@ -185,9 +194,20 @@ class RoadAnomalyDataset(Dataset):
 
 @DATASETS.register_module()
 class FSLostAndFoundDataset(BaseSegDataset):
+    # METAINFO = dict(
+    # classes=('normal', 'anomaly'),
+    # palette=[[128, 64, 128], [244, 35, 232]])
     METAINFO = dict(
-    classes=('normal', 'anomaly'),
-    palette=[[128, 64, 128], [244, 35, 232]])
+        classes=('road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+                 'traffic light', 'traffic sign', 'vegetation', 'terrain',
+                 'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
+                 'motorcycle', 'bicycle', 'anomaly'),
+        palette=[[128, 64, 128], [244, 35, 232], [70, 70, 70], [102, 102, 156],
+                 [190, 153, 153], [153, 153, 153], [250, 170, 30], [220, 220, 0],
+                 [107, 142, 35], [152, 251, 152], [70, 130, 180],
+                 [220, 20, 60], [255, 0, 0], [0, 0, 142], [0, 0, 70],
+                 [0, 60, 100], [0, 80, 100], [0, 0, 230], [119, 11, 32], 
+                 [0, 255, 0]])
     
     def __init__(self,
                  img_suffix='.png',
