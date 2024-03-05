@@ -31,6 +31,7 @@ from torch import Tensor
 
 from mmseg.models.utils import resize
 from einops import rearrange
+import numpy as np
 
 @MODELS.register_module()
 class EncoderDecoderLDM(EncoderDecoder):
@@ -2274,6 +2275,36 @@ class EncoderDecoderLDMP2A2(EncoderDecoder):
 
         return data_samples
 
+    def predict(self,
+                inputs: Tensor,
+                data_samples: OptSampleList = None) -> SampleList:
+        if data_samples is not None:
+            batch_img_metas = [
+                data_sample.metainfo for data_sample in data_samples
+            ]
+        else:
+            batch_img_metas = [
+                dict(
+                    ori_shape=inputs.shape[2:],
+                    img_shape=inputs.shape[2:],
+                    pad_shape=inputs.shape[2:],
+                    padding_size=[0, 0, 0, 0])
+            ] * inputs.shape[0]
+
+        seg_logits = self.inference(inputs, batch_img_metas)
+        assert seg_logits.shape[0] == 1
+        import os
+        for seg_logit, img_meta in zip(seg_logits, batch_img_metas):
+            seg_logit = resize(
+                seg_logit.unsqueeze(0),
+                size=img_meta['ori_shape'],
+                mode='bilinear',
+                align_corners=self.align_corners,
+                warning=False).squeeze(0)
+            pred_anomaly_score = seg_logit[1] - seg_logit[0]
+            np.save(os.path.join('road-anomaly-benchmark/predictions/ObstacleTrack', img_meta['img_path'].split('/')[-1][:-5]), seg_logit.detach().cpu().numpy())
+
+        return self.postprocess_result(seg_logits, data_samples)
 
 # P2A2 + refine network
 @MODELS.register_module()
@@ -2639,7 +2670,7 @@ class Mask2FormerHeadP2A2(Mask2FormerHeadP2A):
         # # seg_logits_0 = ((weight_0.unsqueeze(2).unsqueeze(2) * mask_pred) * mask_0.unsqueeze(2).unsqueeze(2)).sum(dim=1)
         # # seg_logits_1 = ((weight_1.unsqueeze(2).unsqueeze(2) * mask_pred) * mask_1.unsqueeze(2).unsqueeze(2)).sum(dim=1)        
         # seg_logits = torch.cat((seg_logits_0.unsqueeze(1), seg_logits_1.unsqueeze(1)), dim=1)
-        return seg_logits_p2a
+        return seg_logits
     
     def _get_targets_single(self, cls_score: Tensor, mask_pred: Tensor,
                             gt_instances: InstanceData,

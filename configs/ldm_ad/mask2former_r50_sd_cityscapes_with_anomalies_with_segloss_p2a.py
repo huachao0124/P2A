@@ -123,10 +123,10 @@ model = dict(
             naive_dice=True,
             eps=1.0,
             loss_weight=5.0),
-        # loss_seg=dict(
-        #     type='SplitSegmentationLoss',
-        #     reduction='mean',
-        #     loss_weight=5.0),
+        loss_seg=dict(
+            type='SegmentationLoss',
+            reduction='mean',
+            loss_weight=5.0),
         train_cfg=dict(
             num_points=12544,
             oversample_ratio=3.0,
@@ -156,7 +156,7 @@ buffer_path = 'ldm/buffer'
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='PasteAnomalies', buffer_path=buffer_path, part_instance=False, mix_ratio=0.2), 
+    dict(type='PasteAnomalies', buffer_path=buffer_path, part_instance=True, mix_ratio=0.8), 
     dict(
         type='RandomChoiceResize',
         scales=[int(1024 * x * 0.1) for x in range(5, 21)],
@@ -171,7 +171,8 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
-    # dict(type='Resize', scale=(1024, 512)),
+    # dict(type='Resize', scale=(2048, 1024)),
+    dict(type='Resize', scale=(1024, 512)),
     # dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
     dict(type='PackSegInputs')
 ]
@@ -179,11 +180,14 @@ test_pipeline = [
 # dataset settings
 train_dataset_type = 'CityscapesWithAnomaliesDataset'
 train_data_root = 'data/cityscapes/'
-test_dataset_type = 'RoadAnomalyDataset'
-test_data_root = 'data/RoadAnomaly'
-test_dataset_type = 'FSLostAndFoundDataset'
-test_data_root = 'data/FS_LostFound'
+# test_dataset_type = 'RoadAnomalyDataset'
+# test_data_root = 'data/RoadAnomaly'
+# test_dataset_type = 'FSLostAndFoundDataset'
+# test_data_root = 'data/FS_LostFound'
 # test_data_root = 'data/FS_Static'
+test_dataset_type = 'SMIYCDataset'
+# test_data_root = 'road-anomaly-benchmark/datasets/dataset_AnomalyTrack'
+test_data_root = 'road-anomaly-benchmark/datasets/dataset_ObstacleTrack'
 
 train_dataloader = dict(batch_size=2,
                         num_workers=2,
@@ -198,6 +202,7 @@ train_dataloader = dict(batch_size=2,
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
                                      pipeline=test_pipeline, 
+                                     img_suffix='.webp',
                                     #  img_suffix='.jpg',
                                      data_prefix=dict(
                                             img_path='images',

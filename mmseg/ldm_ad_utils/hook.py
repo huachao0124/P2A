@@ -274,13 +274,14 @@ class VisualizerHeatMap(SegLocalVisualizer):
             drawn_img = pred_img_data
 
         # heatmap = (data_sample.seg_logits.data[1, :, :] - data_sample.seg_logits.data[0, :, :]).cpu().numpy()
+        heatmap = -np.max(data_sample.seg_logits.data.cpu().numpy(), axis=0)
         # heatmap = data_sample.seg_logits.data[1, :, :].cpu().numpy()
         # heatmap = -np.max(data_sample.seg_logits.data[:, :, :].cpu().numpy(), axis=0)
         # assert data_sample.seg_logits.data.shape[0] >= 3
-        seg_logits = data_sample.seg_logits.data.cpu().numpy()
-        heatmap = -seg_logits[0, :, :]
-        heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
-        heatmap = seg_logits[1, :, :] * heatmap - seg_logits[0, :, :]
+        # seg_logits = data_sample.seg_logits.data.cpu().numpy()
+        # heatmap = -seg_logits[0, :, :]
+        # heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
+        # heatmap = seg_logits[1, :, :] * heatmap - seg_logits[0, :, :]
         heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
         # heatmap = (heatmap + 5) / 10
         heatmap = (heatmap * 255).astype(np.uint8)

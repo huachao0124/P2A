@@ -483,16 +483,18 @@ class StreetHazardsDataset(BaseDataset):
 
 
 @DATASETS.register_module()
-class AnomalyTrackDataset(BaseDataset):
+class SMIYCDataset(BaseDataset):
     METAINFO = dict(
     classes=('not anomaly', 'anomaly'),
     palette=[[128, 64, 128], [244, 35, 232]])
     def __init__(self,
                  data_root: str = None, 
                  data_info: str = None, 
+                 img_suffix: str = '.jpg', 
                  **kwargs) -> None:
         super().__init__(lazy_init=True, serialize_data=False, data_root=data_root, **kwargs)
-        self.img_list = glob.glob(os.path.join(data_root, 'images', '*.jpg'))
+        self.img_list = glob.glob(os.path.join(data_root, 'images', f'*{img_suffix}'))
+        self.img_suffix = img_suffix
 
     def full_init(self):
         pass
@@ -501,17 +503,18 @@ class AnomalyTrackDataset(BaseDataset):
         return len(self.img_list)
     
     def get_data_info(self, idx: int) -> dict:
+        data_info = dict()
         if idx >= 0:
             data_info['sample_idx'] = idx
         else:
             data_info['sample_idx'] = len(self) + idx
         
-        data_info = {'img_path': self.img_list[idx]}
+        data_info['img_path'] = self.img_list[idx]
         data_info['reduce_zero_label'] = False
-        data_info['seg_map_path'] = self.img_list[idx].replace('images', 'labels_masks').replace('.jpg', '_labels_semantic.png')
-        if not os.path.exists(data_info['seg_map_path']):
-            img = cv2.imread(data_info['img_path'])
-            cv2.imwrite(data_info['seg_map_path'], np.zeros_like(img))
+        data_info['seg_map_path'] = self.img_list[idx].replace('images', 'labels_masks').replace(self.img_suffix, '_labels_semantic.png')
+        # if not os.path.exists(data_info['seg_map_path']):
+        img = cv2.imread(data_info['img_path'])
+        cv2.imwrite(data_info['seg_map_path'], np.zeros((*img.shape[:2], 1)))
         data_info['seg_fields'] = []
 
         return data_info
