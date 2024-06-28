@@ -2259,7 +2259,7 @@ class EncoderDecoderLDMP2A2(EncoderDecoder):
                 i_seg_logits = seg_logits[i]
 
             if C > 1:
-                i_seg_pred = i_seg_logits.argmax(dim=0, keepdim=True)
+                i_seg_pred = i_seg_logits[:19].argmax(dim=0, keepdim=True)
             else:
                 i_seg_logits = i_seg_logits.sigmoid()
                 i_seg_pred = (i_seg_logits >
@@ -2293,16 +2293,15 @@ class EncoderDecoderLDMP2A2(EncoderDecoder):
 
         seg_logits = self.inference(inputs, batch_img_metas)
         assert seg_logits.shape[0] == 1
-        import os
-        for seg_logit, img_meta in zip(seg_logits, batch_img_metas):
-            seg_logit = resize(
-                seg_logit.unsqueeze(0),
-                size=img_meta['ori_shape'],
-                mode='bilinear',
-                align_corners=self.align_corners,
-                warning=False).squeeze(0)
-            pred_anomaly_score = seg_logit[1] - seg_logit[0]
-            np.save(os.path.join('road-anomaly-benchmark/predictions/ObstacleTrack', img_meta['img_path'].split('/')[-1][:-5]), seg_logit.detach().cpu().numpy())
+        # import os
+        # for seg_logit, img_meta in zip(seg_logits, batch_img_metas):
+        #     seg_logit = resize(
+        #         seg_logit.unsqueeze(0),
+        #         size=img_meta['ori_shape'],
+        #         mode='bilinear',
+        #         align_corners=self.align_corners,
+        #         warning=False).squeeze(0)
+        #     np.save(os.path.join('road-anomaly-benchmark/predictions/ObstacleTrack', img_meta['img_path'].split('/')[-1][:-5]), seg_logit.detach().cpu().numpy())
 
         return self.postprocess_result(seg_logits, data_samples)
 
@@ -2670,7 +2669,7 @@ class Mask2FormerHeadP2A2(Mask2FormerHeadP2A):
         # # seg_logits_0 = ((weight_0.unsqueeze(2).unsqueeze(2) * mask_pred) * mask_0.unsqueeze(2).unsqueeze(2)).sum(dim=1)
         # # seg_logits_1 = ((weight_1.unsqueeze(2).unsqueeze(2) * mask_pred) * mask_1.unsqueeze(2).unsqueeze(2)).sum(dim=1)        
         # seg_logits = torch.cat((seg_logits_0.unsqueeze(1), seg_logits_1.unsqueeze(1)), dim=1)
-        return seg_logits
+        return seg_logits_combined
     
     def _get_targets_single(self, cls_score: Tensor, mask_pred: Tensor,
                             gt_instances: InstanceData,

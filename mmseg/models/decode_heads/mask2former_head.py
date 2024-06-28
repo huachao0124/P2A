@@ -158,6 +158,27 @@ class Mask2FormerHead(MMDET_Mask2FormerHead):
         mask_pred_results = F.interpolate(
             mask_pred_results, size=size, mode='bilinear', align_corners=False)
         cls_score = F.softmax(mask_cls_results, dim=-1)[..., :-1]
+        import numpy as np
+        # cls_queries = np.argmax(mask_cls_results.detach().cpu().numpy()[..., :-1], axis=-1)
+        # with open('queries_cls.txt', 'ab') as f:
+        #     # 如果文件非空，添加一个换行符以防止追加的内容直接接在上一个内容的后面
+        #     f.seek(0, 2)  # 移动到文件末尾
+        #     if f.tell():  # 如果文件不是空的
+        #         f.write(b'\n')  # 写入一个换行符
+        #     np.savetxt(f, cls_queries, delimiter=',')
+
         mask_pred = mask_pred_results.sigmoid()
+        # y = np.arange(2048)
+        # x = np.arange(1024)
+        # Y, X= np.meshgrid(y, x)
+        # coord_points = np.concatenate((Y[..., None], X[..., None]), axis=-1)
+        # average_mask_pred = np.einsum('qhw, hwd->qd', mask_pred.squeeze().detach().cpu().numpy(), coord_points)
+        # with open('queries_coord.txt', 'ab') as f:
+        #     # 如果文件非空，添加一个换行符以防止追加的内容直接接在上一个内容的后面
+        #     f.seek(0, 2)  # 移动到文件末尾
+        #     if f.tell():  # 如果文件不是空的
+        #         f.write(b'\n')  # 写入一个换行符
+        #     np.savetxt(f, average_mask_pred, delimiter=',')
+
         seg_logits = torch.einsum('bqc, bqhw->bchw', cls_score, mask_pred)
         return seg_logits

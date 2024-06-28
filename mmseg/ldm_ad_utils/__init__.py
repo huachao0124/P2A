@@ -28,7 +28,8 @@ from .dataset import (CityscapesWithAnomaliesDataset,
                       PasteCocoObjects, 
                       CocoSemSeg, 
                       StreetHazardsDataset, 
-                      SMIYCDataset)
+                      SMIYCDataset, 
+                      SimpleDataset)
 from .utils import FixedAssigner
 from .loop import MyIterBasedTrainLoop
 from .metric import AnomalyMetric, AnomalyMetricDoublePart, AnomalyMetricP2A, AnomalyMetricRbA, AnomalyMetricP2A4, AnomalyMetricP2A5
@@ -71,6 +72,7 @@ __all__ = ['DDIMSampler',
            'SegmentationLoss', 
            'SplitSegmentationLoss', 
            'CityscapesWithCocoDataset', 
+           'SimpleDataset',
            'CocoSemSeg', 
            'PasteCocoObjects', 
            'StreetHazardsDataset', 

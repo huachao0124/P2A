@@ -162,8 +162,9 @@ train_pipeline = [
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations'), 
-    dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
+    dict(type='LoadAnnotations'),
+    dict(type='Resize', scale=(1024, 512)),
+    # dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
     # dict(type='UnifyGT', label_map={0: 0, 1: 1, 255: 0}), 
     dict(type='PackSegInputs')
 ]
@@ -171,25 +172,25 @@ test_pipeline = [
 # dataset settings
 train_dataset_type = 'CityscapesWithCocoDataset'
 train_data_root = 'data/cityscapes/'
-test_dataset_type = 'RoadAnomalyDataset'
-test_data_root = 'data/RoadAnomaly'
-# test_dataset_type = 'FSLostAndFoundDataset'
-# test_data_root = 'data/FS_LostFound'
+# test_dataset_type = 'RoadAnomalyDataset'
+# test_data_root = 'data/RoadAnomaly'
+test_dataset_type = 'FSLostAndFoundDataset'
+test_data_root = 'data/FS_LostFound'
 # test_data_root = 'data/FS_Static'
 
 train_dataloader = dict(dataset=dict(type=train_dataset_type, 
                                      coco_file_path='data/coco/',
                                      data_root=train_data_root, 
                                      pipeline=train_pipeline))
-val_dataloader = dict(dataset=dict(type=test_dataset_type, 
-                                     data_root=test_data_root, 
-                                     pipeline=test_pipeline))
 # val_dataloader = dict(dataset=dict(type=test_dataset_type, 
 #                                      data_root=test_data_root, 
-#                                      pipeline=test_pipeline, 
-#                                      data_prefix=dict(
-#                                             img_path='images', 
-#                                             seg_map_path='labels_masks')))
+#                                      pipeline=test_pipeline))
+val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+                                     data_root=test_data_root, 
+                                     pipeline=test_pipeline, 
+                                     data_prefix=dict(
+                                            img_path='images', 
+                                            seg_map_path='labels_masks')))
 test_dataloader = val_dataloader
 val_evaluator = dict(type='AnomalyMetricP2A')
 test_evaluator = val_evaluator
@@ -221,6 +222,11 @@ param_scheduler = [
         by_epoch=False)
 ]
 
+
+vis_backends = [dict(type='LocalVisBackend')]
+visualizer = dict(
+    type='VisualizerHeatMap', vis_backends=vis_backends, name='visualizer')
+
 # training schedule for 90k
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000, val_interval=1000)
 val_cfg = dict(type='ValLoop')
@@ -234,7 +240,7 @@ default_hooks = dict(
         # save_best='mIoU'),
         save_best='AUPRC', rule='greater'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=1))
+    visualization=dict(type='SegVisualizationWithResizeHook', draw=True, interval=1))
 
 
 # Default setting for scaling LR automatically

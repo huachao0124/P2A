@@ -172,7 +172,7 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'), 
     # dict(type='Resize', scale=(2048, 1024)),
-    dict(type='Resize', scale=(1024, 512)),
+    # dict(type='Resize', scale=(1024, 512)),
     # dict(type='UnifyGT', label_map={0: 0, 2: 1}), 
     dict(type='PackSegInputs')
 ]
@@ -182,12 +182,14 @@ train_dataset_type = 'CityscapesWithAnomaliesDataset'
 train_data_root = 'data/cityscapes/'
 # test_dataset_type = 'RoadAnomalyDataset'
 # test_data_root = 'data/RoadAnomaly'
-# test_dataset_type = 'FSLostAndFoundDataset'
-# test_data_root = 'data/FS_LostFound'
+test_dataset_type = 'FSLostAndFoundDataset'
+test_data_root = 'data/FS_LostFound'
 # test_data_root = 'data/FS_Static'
-test_dataset_type = 'SMIYCDataset'
+# test_dataset_type = 'SMIYCDataset'
 # test_data_root = 'road-anomaly-benchmark/datasets/dataset_AnomalyTrack'
-test_data_root = 'road-anomaly-benchmark/datasets/dataset_ObstacleTrack'
+# test_data_root = 'road-anomaly-benchmark/datasets/dataset_ObstacleTrack'
+# train_dataset_type = 'SimpleDataset'
+# test_dataset_type = 'SimpleDataset'
 
 train_dataloader = dict(batch_size=2,
                         num_workers=2,
@@ -202,7 +204,7 @@ train_dataloader = dict(batch_size=2,
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
                                      pipeline=test_pipeline, 
-                                     img_suffix='.webp',
+                                    #  img_suffix='.webp',
                                     #  img_suffix='.jpg',
                                      data_prefix=dict(
                                             img_path='images',

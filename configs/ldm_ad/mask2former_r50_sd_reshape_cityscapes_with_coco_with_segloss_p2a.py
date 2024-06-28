@@ -189,9 +189,9 @@ train_dataloader = dict(batch_size=4,
                                      coco_file_path='data/coco/',
                                      data_root=train_data_root, 
                                      pipeline=train_pipeline))
-val_dataloader = dict(dataset=dict(type=test_dataset_type, 
-                                     data_root=test_data_root, 
-                                     pipeline=test_pipeline))
+# val_dataloader = dict(dataset=dict(type=test_dataset_type, 
+#                                      data_root=test_data_root, 
+#                                      pipeline=test_pipeline))
 val_dataloader = dict(dataset=dict(type=test_dataset_type, 
                                      data_root=test_data_root, 
                                      pipeline=test_pipeline, 

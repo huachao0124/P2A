@@ -273,17 +273,34 @@ class VisualizerHeatMap(SegLocalVisualizer):
         else:
             drawn_img = pred_img_data
 
+        seg_logits_ind = data_sample.seg_logits.data[:19, :, :].cpu().numpy()
+        seg_logits_p2a = data_sample.seg_logits.data[19:, :, :].cpu().numpy()
+
         # heatmap = (data_sample.seg_logits.data[1, :, :] - data_sample.seg_logits.data[0, :, :]).cpu().numpy()
-        heatmap = -np.max(data_sample.seg_logits.data.cpu().numpy(), axis=0)
         # heatmap = data_sample.seg_logits.data[1, :, :].cpu().numpy()
         # heatmap = -np.max(data_sample.seg_logits.data[:, :, :].cpu().numpy(), axis=0)
-        # assert data_sample.seg_logits.data.shape[0] >= 3
+
         # seg_logits = data_sample.seg_logits.data.cpu().numpy()
         # heatmap = -seg_logits[0, :, :]
         # heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
         # heatmap = seg_logits[1, :, :] * heatmap - seg_logits[0, :, :]
-        heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
-        # heatmap = (heatmap + 5) / 10
+
+        # heatmap = seg_logits_p2a[1, :, :] - seg_logits_p2a[0, :, :]
+        # segmentation_map = np.argmax(seg_logits_ind, axis=0)
+        # filter_map = (segmentation_map == 2) | (segmentation_map == 8) | (segmentation_map == 10)
+        # filter_map = (segmentation_map == 4) | (segmentation_map == 8) | (segmentation_map == 9) | (segmentation_map == 10) | (segmentation_map == 16)
+        # heatmap = -np.max(seg_logits_ind.data.cpu().numpy(), axis=0)
+        # heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
+        # heatmap[filter_map] = 0 
+        # heatmap = (heatmap * 255).astype(np.uint8)
+
+        heatmap1 = seg_logits_p2a[1, :, :]
+        heatmap2 = -seg_logits_p2a[0, :, :]
+        heatmap3 = seg_logits_p2a[1, :, :] - seg_logits_p2a[0, :, :]
+        heatmap1 = (heatmap1 - heatmap1.min()) / (heatmap1.max() - heatmap1.min())
+        heatmap2 = (heatmap2 - heatmap2.min()) / (heatmap2.max() - heatmap2.min())
+        heatmap3 = (heatmap3 - heatmap3.min()) / (heatmap3.max() - heatmap3.min())
+        heatmap = np.concatenate((heatmap1, heatmap2, heatmap3), axis=1)
         heatmap = (heatmap * 255).astype(np.uint8)
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)[:, :, ::-1]
         drawn_img = np.concatenate((drawn_img, heatmap), axis=1)

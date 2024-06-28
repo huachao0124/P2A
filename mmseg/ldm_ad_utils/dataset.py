@@ -485,8 +485,8 @@ class StreetHazardsDataset(BaseDataset):
 @DATASETS.register_module()
 class SMIYCDataset(BaseDataset):
     METAINFO = dict(
-    classes=('not anomaly', 'anomaly'),
-    palette=[[128, 64, 128], [244, 35, 232]])
+        classes=('not anomaly', 'anomaly'),
+        palette=[[128, 64, 128], [244, 35, 232]])
     def __init__(self,
                  data_root: str = None, 
                  data_info: str = None, 
@@ -512,6 +512,48 @@ class SMIYCDataset(BaseDataset):
         data_info['img_path'] = self.img_list[idx]
         data_info['reduce_zero_label'] = False
         data_info['seg_map_path'] = self.img_list[idx].replace('images', 'labels_masks').replace(self.img_suffix, '_labels_semantic.png')
+        # if not os.path.exists(data_info['seg_map_path']):
+        img = cv2.imread(data_info['img_path'])
+        cv2.imwrite(data_info['seg_map_path'], np.zeros((*img.shape[:2], 1)))
+        data_info['seg_fields'] = []
+
+        return data_info
+
+    def prepare_data(self, idx) -> Any:
+        data_info = self.get_data_info(idx)
+        return self.pipeline(data_info)
+
+
+@DATASETS.register_module()
+class SimpleDataset(BaseDataset):
+    METAINFO = dict(
+        classes=('not anomaly', 'anomaly'),
+        palette=[[128, 64, 128], [244, 35, 232]])
+    def __init__(self,
+                 data_root: str = None, 
+                 data_info: str = None, 
+                 img_suffix: str = '.jpg', 
+                 **kwargs) -> None:
+        super().__init__(lazy_init=True, serialize_data=False, data_root=data_root, **kwargs)
+        self.img_list = ['image.png']
+        self.img_suffix = img_suffix
+
+    def full_init(self):
+        pass
+    
+    def __len__(self):
+        return len(self.img_list)
+    
+    def get_data_info(self, idx: int) -> dict:
+        data_info = dict()
+        if idx >= 0:
+            data_info['sample_idx'] = idx
+        else:
+            data_info['sample_idx'] = len(self) + idx
+        
+        data_info['img_path'] = self.img_list[idx]
+        data_info['reduce_zero_label'] = False
+        data_info['seg_map_path'] = 'mask_19.png'
         # if not os.path.exists(data_info['seg_map_path']):
         img = cv2.imread(data_info['img_path'])
         cv2.imwrite(data_info['seg_map_path'], np.zeros((*img.shape[:2], 1)))

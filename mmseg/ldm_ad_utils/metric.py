@@ -359,7 +359,7 @@ class AnomalyMetricP2A(BaseMetric):
         
 
         seg_logits_ind = seg_logits[:, :19, :, :]
-        # seg_logits_p2a = seg_logits[:, 19:, :, :]
+        seg_logits_p2a = seg_logits[:, 19:, :, :]
         # seg_logits_p2a = np.tanh(seg_logits)
         # seg_logits_p2a = seg_logits
         
@@ -371,8 +371,8 @@ class AnomalyMetricP2A(BaseMetric):
         def normalize(p):
             assert len(p.shape) == 2
             return (p - p.min()) / (p.max() - p.min())
-        # pred_anomaly_maps = seg_logits_p2a[:, 1, :, :] - seg_logits_p2a[:, 0, :, :]
-        pred_anomaly_maps = -np.max(seg_logits_ind, axis=1)
+        pred_anomaly_maps = seg_logits_p2a[:, 1, :, :] - seg_logits_p2a[:, 0, :, :]
+        # pred_anomaly_maps = -np.max(seg_logits_ind, axis=1)
         
         # positive_logits = seg_logits_p2a[:, 1, :, :]
         # negative_logits = -seg_logits_p2a[:, 0, :, :]
@@ -381,11 +381,11 @@ class AnomalyMetricP2A(BaseMetric):
         # pred_anomaly_maps = positive_logits + negative_logits
         
         
-        segmentation_map = np.argmax(seg_logits_ind, axis=1)
+        # segmentation_map = np.argmax(seg_logits_ind, axis=1)
         # print(segmentation_map.shape)
         # # filter_map = (segmentation_map == 2) | (segmentation_map == 8) | (segmentation_map == 10)
-        filter_map = (segmentation_map == 1) | (segmentation_map == 2) | (segmentation_map == 3) | (segmentation_map == 4) | (segmentation_map == 8) | (segmentation_map == 9) | (segmentation_map == 10)
-        pred_anomaly_maps[filter_map] -= 50
+        # filter_map = (segmentation_map == 1) | (segmentation_map == 2) | (segmentation_map == 3) | (segmentation_map == 4) | (segmentation_map == 8) | (segmentation_map == 9) | (segmentation_map == 10)
+        # pred_anomaly_maps[filter_map] -= 50
         pred_anomaly_maps = pred_anomaly_maps.flatten()
 
         # pred_anomaly_maps = seg_logits[:, 1, :, :].flatten() - seg_logits[:, 0, :, :].flatten()
