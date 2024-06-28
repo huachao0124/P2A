@@ -123,3 +123,5 @@ samples
 test_ldm.py
 test.ipynb
 ldm/modules/encoders/modules.py
+road-anomaly-benchmark
+ldm
